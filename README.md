@@ -5,10 +5,11 @@ Features:
 
 - Tracks the top Hypixel Skyblock users for Ghast Tear collection and logs their daily collection gains.
 - Estimates the daily profit/loss for a collection of 30 T12 Ghast Tear Minions on Hypixel Skyblock
-- Calculates the estimated time until a T12 Ghast Minion has been filled, pings user once it is 90% filled.
 - Rolls dice used for TTRPGs, such as d20s, d10s, d100s, etc.
 - Rolls dice for creatures summoned in DND, such as with the spell Conjure Animals.
 - Tracks keywords in the daily deals channel, pings users if a keyword is mentioned.
+- Searches and plays music within Discord voice channels.
+- Track stocks and metal prices. Sends alerts when target goals are met.
 - Tracks the bot's current public ip address, logs any changes.
 - And many other micro projects!
 
