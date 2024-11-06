@@ -11,7 +11,7 @@ except ModuleNotFoundError:
 try:
     import configparser
 except ModuleNotFoundError:
-    print("Please install asyncio. (pip install configparser)")
+    print("Please install configparser. (pip install configparser)")
     e = input("Press enter to close")
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
@@ -32,6 +32,8 @@ from music_cog import music_cog
 from network_cog import network_cog
 from skyblock_cog import skyblock_cog
 from finance_cog import finance_cog
+from reminders_cog import reminders_cog
+from yt_notifications_cog import yt_notifications_cog
 
 
 # Import .ini  configuration file
@@ -63,6 +65,8 @@ async def main():
         await bot.add_cog(network_cog(bot))
         await bot.add_cog(skyblock_cog(bot))
         await bot.add_cog(finance_cog(bot))
+        await bot.add_cog(reminders_cog(bot))
+        await bot.add_cog(yt_notifications_cog(bot))
         await bot.start(config['BOT']['discord_bot_token'])
 
 
@@ -75,3 +79,14 @@ except Exception as e:
     print("Error attempting to launch bot: ", str(e))
     e = input("Press enter to close")
     sys.exit()
+
+
+'''
+TO DO:
+- Replace all string concatenation with function variables
+- Add error checks for empty databases to all SQL queries
+- Add function to generate SQL tables when none exist
+- Tidy up channel and role variables
+
+
+'''

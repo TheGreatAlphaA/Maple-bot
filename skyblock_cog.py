@@ -27,7 +27,7 @@ except ModuleNotFoundError:
 try:
     import configparser
 except ModuleNotFoundError:
-    print("Please install asyncio. (pip install configparser)")
+    print("Please install configparser. (pip install configparser)")
     e = input("Press enter to close")
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
@@ -57,12 +57,10 @@ class skyblock_cog(commands.Cog):
         # This is the api key that identifies the bot
         self.sb_api_key = self.config['SKYBLOCK']['hypixel_api_key']
 
-        self.sb_channel = int(self.config['SKYBLOCK']['skyblock_tracker_channel'])
+        self.sb_channel = int(self.config['DISCORD_CHANNELS']['skyblock_tracker'])
 
         # This is the list of player profiles
         self.sb_players = []
-
-        self.sb_profiles()
 
         self.SkyblockTrackerLoop.start()
 
@@ -84,7 +82,7 @@ class skyblock_cog(commands.Cog):
 
         cursor = mydb.cursor(buffered=True)
 
-        query = """SELECT ID, MINECRAFT_USERNAME, MINECRAFT_UUID, SKYBLOCK_UUID FROM sb_players"""
+        query = """SELECT ID, MINECRAFT_USERNAME, MINECRAFT_UUID, SKYBLOCK_UUID, GHAST_TEARS FROM sb_players"""
         cursor.execute(query)
 
         # Checks if query is empty
@@ -95,10 +93,99 @@ class skyblock_cog(commands.Cog):
         skyblock_players = cursor.fetchall()
 
         for player in skyblock_players:
-            player_attr = [player[1], player[2], player[3]]
+            player_attr = [player[1], player[2], player[3], player[4]]
             result.append(player_attr)
 
         self.sb_players = result
+
+    async def sb_harvest(self, username, ghast_tears):
+
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        # Get the old values for ghast tears, and how many days have passed.
+        query = """SELECT GHAST_TEARS FROM sb_players WHERE MINECRAFT_USERNAME = %(username)s"""
+        cursor.execute(query, {'username': username})
+
+        # Checks if query is empty
+        if cursor.rowcount == 0:
+            print("Error! Unexpected value in sb_harvest function!")
+            return None
+
+        # Organizes the data
+        yesterdays_harvest = cursor.fetchall()
+
+        yesterdays_ghast_tears = yesterdays_harvest[0][0]
+
+        # If today's ghast tears are higher than yesterday's, update the ghast tear collection and days since last harvest
+        if ghast_tears > yesterdays_ghast_tears:
+
+            # Update the player's current ghast tear collection
+            query = """UPDATE sb_players SET GHAST_TEARS = %(ghast_tears)s WHERE MINECRAFT_USERNAME = %(username)s"""
+            cursor.execute(query, {'username': username, 'ghast_tears': ghast_tears})
+
+            # Reset the days since last harvest
+            days_since_last_harvest = 0
+
+            query = """UPDATE sb_players SET DAYS_SINCE = %(days_since_last_harvest)s WHERE MINECRAFT_USERNAME = %(username)s"""
+            cursor.execute(query, {'username': username, 'days_since_last_harvest': days_since_last_harvest})
+
+            # Commit changes to database
+            mydb.commit()
+
+        elif ghast_tears < yesterdays_ghast_tears:
+            print("Error! Unexpected value in sb_harvest function!")
+
+    async def sb_increment_days_since(self):
+
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        query = """UPDATE sb_players SET DAYS_SINCE = DAYS_SINCE + 1"""
+        cursor.execute(query)
+
+        # Commit changes to database
+        mydb.commit()
+
+    async def sb_get_days_since(self, username):
+
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        # Get the old values for ghast tears, and how many days have passed.
+        query = """SELECT DAYS_SINCE FROM sb_players WHERE MINECRAFT_USERNAME = %(username)s"""
+        cursor.execute(query, {'username': username})
+
+        # Checks if query is empty
+        if cursor.rowcount == 0:
+            print("Error! Unexpected value in sb_get_days_since function!")
+            return None
+
+        # Organizes the data
+        data = cursor.fetchall()
+
+        return data[0][0]
 
     def seconds_until(self, hours, minutes):
         given_time = datetime.time(hours, minutes)
@@ -162,14 +249,14 @@ class skyblock_cog(commands.Cog):
     #
 
     async def SkyblockGhastTearCollection(self, player, profile):
-        url = "https://api.hypixel.net/v2/skyblock/profile?key=" + self.sb_api_key + "&profile=" + profile
+        url = f"https://api.hypixel.net/v2/skyblock/profile?key={self.sb_api_key}&profile={profile}"
         resp = urllib.request.urlopen(url)
         data = json.load(resp)
         ghast_collection = data["profile"]["members"][player]["collection"]["GHAST_TEAR"]
         return ghast_collection
 
     async def SkyblockMayorChecker(self):
-        url = "https://api.hypixel.net/v2/resources/skyblock/election?key=" + self.sb_api_key
+        url = f"https://api.hypixel.net/v2/resources/skyblock/election?key={self.sb_api_key}"
         resp = urllib.request.urlopen(url)
         data = json.load(resp)
 
@@ -227,8 +314,11 @@ class skyblock_cog(commands.Cog):
         return int(daily_net)
 
     async def SkyblockTracker(self):
+        # Update the skyblock profiles
+        self.sb_profiles()
+
         # Estimated burden of this function is 5 API calls
-        url = "https://api.hypixel.net/v2/skyblock/bazaar?key=" + self.sb_api_key
+        url = f"https://api.hypixel.net/v2/skyblock/bazaar?key={self.sb_api_key}"
         resp = urllib.request.urlopen(url)
         bazaar_data = json.load(resp)
 
@@ -246,44 +336,23 @@ class skyblock_cog(commands.Cog):
         for i in range(len(self.sb_players)):
             ranking[i].append(await self.SkyblockGhastTearCollection(self.sb_players[i][1], self.sb_players[i][2]))
             ranking[i].append(self.sb_players[i][0])
+            ranking[i].append(self.sb_players[i][3])
         ranking.sort(reverse=True)
         # This string contains the message that will be sent at the end.
         sb_tracker_msg = ""
 
         # Lists the ranked ghast collection leaderboard.
         for i in range(len(self.sb_players)):
-            # Checks if any of the top 3 include myself
-            if ranking[i][1] == "Alpha_A":
-                if i == 0:
-                    sb_tracker_msg += ranking[i][1] + " has a ghast collection of " + str(ranking[i][0])
-                    sb_delta = ranking[i][0] - ranking[1][0]
-                    sb_tracker_msg += " (+" + str(sb_delta) + " from 2nd place)"
-                else:
-                    sb_tracker_msg += ranking[i][1] + " has a ghast collection of " + str(ranking[i][0])
-                    sb_delta = ranking[0][0] - ranking[i][0]
-                    sb_tracker_msg += " (-" + str(sb_delta) + " from 1st place)"
+            # Lists the ghast collections
+            sb_tracker_msg += f"{ranking[i][1]} has a ghast collection of {ranking[i][0]}"
+            sb_delta = ranking[i][0] - ranking[i][2]
+            sb_tracker_msg += f" (+{sb_delta})\n"
 
-                # Reads yesterday's delta (change)
-                # Delta is a value that determines the difference between myself and first place
-                sb_delta_old = self.convert_to_int(self.read_from_txt("skyblock/delta.txt"))
-
-                # Computes delta over time. This is helpful for spotting drastic changes
-                sb_delta_ot = sb_delta - sb_delta_old[0]
-                if sb_delta_ot > 0:
-                    sb_tracker_msg += " (+" + str(sb_delta_ot) + " \u0394)\n"
-                else:
-                    sb_tracker_msg += " (" + str(sb_delta_ot) + " \u0394)\n"
-
-                # Writes down today's delta to compare tomorrow
-                self.write_to_txt("skyblock/delta.txt", str(sb_delta))
-
-            else:
-                # Lists the ghast collections for everyone else
-                sb_tracker_msg += str(ranking[i][1]) + " has a ghast collection of " + str(ranking[i][0]) + "\n"
+            await self.sb_harvest(ranking[i][1], ranking[i][0])
 
         # Check if a special mayor has been elected
         if mayor not in {"Aatrox", "Cole", "Diana", "Diaz", "Finnegan", "Foxy", "Marina", "Paul"}:
-            sb_tracker_msg += "\n:person_in_tuxedo: Special Mayor " + mayor + " is in office today.\n"
+            sb_tracker_msg += f"\n:person_in_tuxedo: Special Mayor {mayor} is in office today.\n"
 
         # Check if a special mayor is up for election
         try:
@@ -293,19 +362,31 @@ class skyblock_cog(commands.Cog):
                 candidates.append(mayors[i])
             for candidate in candidates:
                 if candidate not in {"Aatrox", "Cole", "Diana", "Diaz", "Finnegan", "Foxy", "Marina", "Paul"}:
-                    sb_tracker_msg += "\n:person_in_tuxedo: Special Mayor " + candidate + " is up for election.\n"
+                    sb_tracker_msg += f"\n:person_in_tuxedo: Special Mayor {candidate} is up for election.\n"
         except IndexError:
             # No candidates avaliable
             pass
 
+        # Check the days since the last harvest
+        days_since = await self.sb_get_days_since("Alpha_A")
+
+        if days_since == 0:
+            sb_tracker_msg += "\n:corn: Minions have been harvested recently (< 1 day).\n"
+        elif days_since == 1:
+            sb_tracker_msg += "\n:seedling: Minions are busy harvesting ghast tears. (1 day).\n"
+        elif days_since < 5:
+            sb_tracker_msg += f"\n:seedling: Minions are busy harvesting ghast tears. ({days_since} days).\n"
+        elif days_since >= 5:
+            sb_tracker_msg += f"\n:sunflower: Ghast tears are ready to be harvested! ({days_since} days).\n"
+
         # Total profit before adding hypercatalysts
-        sb_tracker_msg += "\n:bar_chart: We made " + str(self.human_format(profit_gen)) + " coins.\n"
+        sb_tracker_msg += f"\n:bar_chart: We made {self.human_format(profit_gen)} coins.\n"
 
         # Check if the estimated profit for using hypercatalysts today was positive
         if profit_hyper > 0:
-            sb_tracker_msg += "\n:chart_with_upwards_trend: Today is PROFITABLE for Hyper Catalysts (+" + str(self.human_format(profit_hyper)) + " coins)"
+            sb_tracker_msg += f"\n:chart_with_upwards_trend: Today is PROFITABLE for Hyper Catalysts (+{self.human_format(profit_hyper)} coins)"
         else:
-            sb_tracker_msg += "\n:chart_with_downwards_trend: Today is not profitable for Hyper Catalysts... (" + str(self.human_format(profit_hyper)) + " coins)"
+            sb_tracker_msg += f"\n:chart_with_downwards_trend: Today is not profitable for Hyper Catalysts... ({self.human_format(profit_hyper)} coins)"
 
         return sb_tracker_msg
 
@@ -313,81 +394,29 @@ class skyblock_cog(commands.Cog):
     #   Commands
     #
 
-    @commands.group(name="skyblock", invoke_without_command=True)
+    @commands.hybrid_group(name="skyblock", invoke_without_command=True)
     async def skyblock(self, ctx):
-        await ctx.send("```Sure thing boss. Please specify a subcommand to use this feature.\nHere is the subcommand list for the 'skyblock' command:\n    'tracker': Manages the skyblock ghast minion leaderboard tracker.\n    'collect': Manages the skyblock ghast minion harvest reminder task.```")
+        msg = f"""
+```
+Sure thing boss. Please specify a subcommand to use this feature.
+Here is the subcommand list for the 'skyblock' command:
+{self.bot.command_prefix}skyblock tracker - Manages the skyblock ghast minion leaderboard tracker.
+```
+"""
+        await ctx.send(msg)
 
-    @skyblock.group(name="tracker", help="Manages the skyblock ghast minion leaderboard tracker.", invoke_without_command=True)
+    @skyblock.group(name="tracker", help="manages the skyblock ghast minion leaderboard tracker.", invoke_without_command=True)
     @commands.has_role("Bot Tester")
-    async def tracker(self, ctx, arg1=None):
-        await ctx.send("```Sure thing boss. Please specify a subcommand to use this feature.\nHere is the subcommand list for the 'tracker' command:\n    'tracker start': Starts the skyblock ghast tear tracker.\n    'tracker stop': Stops the skyblock ghast tear tracker.\n    'tracker status': Checks on the status of the tracker.\n    'tracker test': Sends a test message from the skyblock tracker.```")
-        
-    @tracker.command(name="start", help="starts the skyblock ghast tear leaderboard checker")
-    @commands.has_role("Bot Tester")
-    async def start(self, ctx):
-        try:
-            if self.SkyblockTrackerLoop.is_running() is True:
-                await ctx.send("The Skyblock Tracker is currently running.")
-            # If the loop is not running
-            elif self.SkyblockTrackerLoop.is_running() is False:
-
-                # Start the tracking loop
-                try: 
-                    self.SkyblockTrackerLoop.start()
-                except Exception as e:
-                    print("Error attempting to launch the skyblock tracker: ", str(e))
-                    await ctx.send("Oh no! I can't start the skyblock tracker right now...\nHere is the error: " + str(e))
-
-                # Check if the loop actually started
-                try:
-                    if self.SkyblockTrackerLoop.is_running() is True:
-                        await ctx.send("Process started successfully!")
-                    else:
-                        await ctx.send("Oh no! I wasn't able to start the skyblock tracker.")
-                except Exception as e:
-                    print("Error attempting to launch the skyblock tracker: ", str(e))
-                    await ctx.send("Oh no! I can't start the skyblock tracker right now...\nHere is the error: " + str(e))
-                return
-        except Exception as e:
-            await ctx.send("Oh no! I'm not able to check the status of the skyblock tracker right now...\nHere is the error: " + str(e))
-            return
-        
-    @tracker.command(name="stop", help="stops the skyblock ghast tear leaderboard checker")
-    @commands.has_role("Bot Tester")
-    async def stop(self, ctx):
-        try:
-            # Check if the loop is actually stopped
-            if self.SkyblockTrackerLoop.is_running() is False:
-                await ctx.send("The Skyblock Tracker is currently offline. Use 'm!skyblock tracker' to start the tracker")
-            # If the loop is running
-            elif self.SkyblockTrackerLoop.is_running() is True:
-
-                # Stop the loop
-                try:
-                    self.SkyblockTrackerLoop.cancel()
-                except Exception as e:
-                    print("Error attempting to stop the skyblock tracker: ", str(e))
-                    await ctx.send("Oh no! I can't stop the skyblock tracker right now...\nHere is the error: " + str(e))
-
-                # Check if the loop actually stopped
-                try:
-                    if self.SkyblockTrackerLoop.is_running() is False:
-                        # This looks really stupid, but the error that this throws keeps bugging me. Will fix later.
-                        # It's very likely that the call to check if the process is running is happening before the process acutally has a chance to stop. 
-                        # The extra if/else statement buffers the check just long enough to get the result we want.
-                        if self.SkyblockTrackerLoop.is_running() is False:
-                            await ctx.send("Oh no! I wasn't able to stop the skyblock tracker.")
-                        else:
-                            await ctx.send("Process haulted successfully!")
-                    else:
-                        await ctx.send("Process haulted successfully!")
-                except Exception as e:
-                    print("Error attempting to stop the skyblock tracker: ", str(e))
-                    await ctx.send("Oh no! I can't stop the skyblock tracker right now...\nHere is the error: " + str(e))
-                return
-        except Exception as e:
-            await ctx.send("Oh no! I'm not able to check the status of the skyblock tracker right now...\nHere is the error: " + str(e))
-            return
+    async def tracker(self, ctx):
+        msg = f"""
+```
+Sure thing boss. Please specify a subcommand to use this feature.
+Here is the subcommand list for the 'tracker' command:
+{self.bot.command_prefix}skyblock tracker status - checks on the status of the tracker
+{self.bot.command_prefix}skyblock tracker test - sends a test message from the skyblock tracker
+```
+"""
+        await ctx.send(msg)
 
     @tracker.command(name="status", help="checks to see if the skyblock ghast tear leaderboard checker is running or not")
     @commands.has_role("Bot Tester")
@@ -396,15 +425,17 @@ class skyblock_cog(commands.Cog):
             if self.SkyblockTrackerLoop.is_running() is True:
                 await ctx.send("The Skyblock Tracker is currently running.")
             else:
-                await ctx.send("The Skyblock Tracker is currently offline. Use 'm!skyblock tracker' to start the tracker")
+                await ctx.send("The Skyblock Tracker is currently offline.")
         except Exception as e:
-            await ctx.send("Oh no! I'm not able to check the status of the skyblock tracker right now...\nHere is the error: " + str(e))
+            await ctx.send(f"Oh no! I'm not able to check the status of the skyblock tracker right now...\nHere is the error: {e}")
             return
 
     @tracker.command(name="test", help="sends a test message to the skyblock tracker channel")
     @commands.has_role("Bot Tester")
     async def test(self, ctx):
+
         try:
+
             # Get the channel object from discord
             channel = self.bot.get_channel(self.sb_channel)
 
@@ -414,72 +445,26 @@ class skyblock_cog(commands.Cog):
             # Sends the final report to the tracker channel
             await channel.send(msg)
 
-            await ctx.send("Sent a test message to the tracker channel!")
-
         except Exception as e:
-            await ctx.send("Oh no! I'm not able to use the skyblock tracker tester right now...\nHere is the error: " + str(e))
+            await ctx.send(f"Oh no! I'm not able to use the skyblock tracker tester right now...\nHere is the error: {e}")
             return
 
-    @skyblock.command(name="collect", help="manages the skyblock ghast minion harvest reminder task")
-    @commands.has_role("Bot Tester")
-    async def collect(self, ctx, arg1=None):
-        await ctx.send("This command was deemed too dangerous to be left alive. I hope we can find a replacement soon...")
-        """
-        try:
-            # Define the task
-            global harvest_task
-
-            # If task already exists, cancel it
-            if harvest_task in asyncio.all_tasks():
-                harvest_task.cancel()
-
-            # Get the channel object from discord
-            channel = self.bot.get_channel(self.sb_channel)
-
-            last_harvest = self.read_from_txt("skyblock/last_harvest.txt")
-            next_harvest = self.read_from_txt("skyblock/next_harvest.txt")
-
-            # Get the date and time of the last recorded harvest
-            past_harvest = datetime.datetime.strptime(last_harvest[0], "%Y-%m-%d %H:%M:%S")
-            # Get the current date and time
-            present_harvest = datetime.datetime.now().replace(microsecond=0)
-            # Get the previously predicted best harvest time
-            max_harvest = datetime.datetime.strptime(next_harvest[0], "%Y-%m-%d %H:%M:%S")
-
-            # Check if Derpy is mayor
-            mayor = await self.SkyblockMayorChecker()
-            if mayor == "Derpy":
-                # Calculate the new best harvest time
-                future_harvest = present_harvest + datetime.timedelta(minutes=3957)
-            else:
-                # Calculate the new best harvest time
-                future_harvest = present_harvest + datetime.timedelta(minutes=7915)
-
-            # Calculate how full the minions were when harvested
-            total_harvest_time_left = present_harvest - past_harvest
-            total_harvest_time = max_harvest - past_harvest
-            percent_completed = math.trunc((total_harvest_time_left / total_harvest_time) * 100)
-
-            # Send a message to the Skyblock channel
-            await channel.send("Collected Ghast Minions. Woohoo! Storage filled at aproximately " + str(percent_completed) + " percent.")
-
-            # Update the past harvest value
-            self.write_to_txt("skyblock/last_harvest.txt", str(present_harvest))
-
-            # Update the predicted best harvest time
-            self.write_to_txt("skyblock/next_harvest.txt", str(future_harvest))
-
-            # Create the task
-            harvest_task = asyncio.create_task(SkyblockNextHarvest())
-
-        except Exception as e:
-            print("Exception occured while collecting: ", str(e))
-            return
-            """
+        await ctx.send("Sent a test message to the tracker channel!")
 
     @tasks.loop(hours=23)
     async def SkyblockTrackerLoop(self):
         await asyncio.sleep(self.seconds_until(18, 00))
+
+        attempts = 0
+
+        try:
+            # Increment the days since last harvest by 1.
+            await self.sb_increment_days_since()
+
+        except Exception as e:
+            print("Exception occured during skyblock loop: ", str(e))
+
+        # Loop until successfully run.
         while True:
             try:
 
@@ -495,6 +480,14 @@ class skyblock_cog(commands.Cog):
             except Exception as e:
                 print("Exception occured during skyblock loop: ", str(e))
                 await asyncio.sleep(20)
-                continue
+
+                # Quit if more than 30 attempts fail
+                if attempts < 30:
+                    attempts += 1
+                    continue
+                else:
+                    break
+
             break
+
         await asyncio.sleep(60)

@@ -3,7 +3,7 @@ import sys
 try:
     import configparser
 except ModuleNotFoundError:
-    print("Please install asyncio. (pip install configparser)")
+    print("Please install configparser. (pip install configparser)")
     e = input("Press enter to close")
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
@@ -25,12 +25,11 @@ class keyword_cog(commands.Cog):
         
         self.config = configparser.ConfigParser()
         self.config.read("info.ini")
+        
+        self.deals_channel = int(self.config['DISCORD_CHANNELS']['deals'])
+        self.tracker_channel = int(self.config['DISCORD_CHANNELS']['deal_tracker'])
 
-        self.command_channel = int(self.config['BOT']['bot_commands_channel'])
-        self.deals_channel = int(self.config['KEYWORD']['deals_channel'])
-        self.keyword_channel = int(self.config['KEYWORD']['keyword_channel'])
-
-        self.keyword_role = int(self.config['KEYWORD']['keyword_role'])
+        self.deal_notifications = int(self.config['DISCORD_ROLES']['deal_notifications'])
 
     def read_from_txt(self, path):
         # Initialize variables
@@ -170,7 +169,16 @@ class keyword_cog(commands.Cog):
     @commands.hybrid_group(name="keyword", aliases=["keywords", "kw"], invoke_without_command=True)
     @commands.has_role("Bot Tester")
     async def keyword(self, ctx, subcommand=None, arg1=None):
-        await ctx.send("```Sure thing boss. Please specify a subcommand to use this feature.\nHere is the subcommand list for the 'keyword' command:\n    'add': Adds a keyword to the list.\n    'remove': Removes a keyword from the list.\n    'list': Lists all of the keywords on the list..```")
+        msg = f"""
+```
+Sure thing boss. Please specify a subcommand to use this feature.
+Here is the subcommand list for the 'keyword' command:
+{self.bot.command_prefix}keyword add <keyword> - adds keywords to the keyword list
+{self.bot.command_prefix}keyword remove <keyword> - removes keywords from the keyword list
+{self.bot.command_prefix}keyword list - lists keywords on the keyword list
+```
+"""
+        await ctx.send(msg)
 
     @keyword.command(name="add", help="adds keywords to the keyword list")
     @commands.has_role("Bot Tester")
@@ -182,14 +190,14 @@ class keyword_cog(commands.Cog):
             for arg in args:
                 keyword_match = self.keyword_check(arg)
                 if (keyword_match[0]):
-                    await ctx.send(arg + " is already on the list")
+                    await ctx.send(f"`{arg}` is already on the list")
                 else:
                     self.write_to_txt("keyword_check/keywords.txt", arg)
                     keyword_match = self.keyword_check(arg)
                     if (keyword_match[0]):
-                        await ctx.send("Added " + arg + " to the keyword list")
+                        await ctx.send(f"Added `{arg}` to the keyword list")
                     else:
-                        await ctx.send("Uh oh! I was unable to add " + arg + " to the list")
+                        await ctx.send(f"Uh oh! I was unable to add `{arg}` to the list")
 
     @keyword.command(name="remove", help="removes keywords from the keyword list")
     @commands.has_role("Bot Tester")
@@ -204,18 +212,18 @@ class keyword_cog(commands.Cog):
                     self.remove_from_txt("keyword_check/keywords.txt", arg)
                     keyword_match = self.keyword_check(arg)
                     if (keyword_match[0]):
-                        await ctx.send("Uh oh! I was unable to remove " + arg + " from the list")
+                        await ctx.send(f"Uh oh! I was unable to remove `{arg}` from the list")
                     else:
-                        await ctx.send("Removed " + arg + " from the keyword list")
+                        await ctx.send(f"Removed `{arg}` from the keyword list")
                 else:
-                    await ctx.send(arg + " isn't on the list.")
+                    await ctx.send(f"`{arg}` isn't on the list.")
 
     @keyword.command(name="list", help="lists keywords on the keyword list")
     @commands.has_role("Bot Tester")
     async def list(self, ctx):
         keywords = self.read_from_txt("keyword_check/keywords.txt")
         keyword_output = "\n".join((line) for line in keywords)
-        await ctx.send("Here is a list of all of the keywords that I'm watching for: \n" + keyword_output)
+        await ctx.send(f"Here is a list of all of the keywords that I'm watching for: \n```{keyword_output}```")
 
     @commands.Cog.listener()
     async def on_message(self, ctx):
@@ -240,8 +248,8 @@ class keyword_cog(commands.Cog):
                 keyword_msg = keyword_msg.partition("@Deal Notifications")[0]
 
                 print("I found a keyword: " + keyword_match[1])
-                role = discord.utils.get(ctx.guild.roles, id=self.keyword_role)
-                channel = self.bot.get_channel(self.keyword_channel)
+                role = discord.utils.get(ctx.guild.roles, id=self.deal_notifications)
+                channel = self.bot.get_channel(self.tracker_channel)
                 embed = discord.Embed(description="I found a keyword!\n" + role.mention, color=0x49cd74)
                 embed.add_field(name="Keyword Matched", value=keyword_match[1])
                 await channel.send(role.mention + " " + keyword_msg, embed=embed)

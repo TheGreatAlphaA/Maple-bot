@@ -26,7 +26,7 @@ except ModuleNotFoundError:
 try:
     import configparser
 except ModuleNotFoundError:
-    print("Please install asyncio. (pip install configparser)")
+    print("Please install configparser. (pip install configparser)")
     e = input("Press enter to close")
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
@@ -39,10 +39,9 @@ class finance_cog(commands.Cog):
         self.config.read("info.ini")
 
         self.av_api_key = str(self.config['FINANCE']['alpha_vantage_api_key'])
-
         self.gold_api_key = str(self.config['FINANCE']['gold_api_key'])
 
-        self.stock_channel = int(self.config['FINANCE']['stock_tracker_channel'])
+        self.stock_channel = int(self.config['DISCORD_CHANNELS']['stock_tracker'])
 
         self.stock_tickers = ["GME", "TSM"]
         # "GME", "NVDA", "MSFT", "IBM", "TSM", "AMD", "MU", "FSLR", "IONQ"
@@ -89,7 +88,7 @@ class finance_cog(commands.Cog):
 
         return metal_info
 
-    @commands.hybrid_command(name="stock")
+    @commands.hybrid_command(name="stock", help="gets the daily stock price for the selected stock ticker")
     @commands.is_owner()
     async def stock(self, ctx, stock_ticker=None):
 
@@ -135,7 +134,7 @@ class finance_cog(commands.Cog):
         except Exception as e:
             print("Exception occured with the stock tracker: ", str(e))
 
-    @commands.hybrid_command(name="metal")
+    @commands.hybrid_command(name="metal", help="gets the daily market price for the selected metal type")
     @commands.is_owner()
     async def metal(self, ctx, metal=None):
 

@@ -27,7 +27,7 @@ except ModuleNotFoundError:
 try:
     import configparser
 except ModuleNotFoundError:
-    print("Please install asyncio. (pip install configparser)")
+    print("Please install configparser. (pip install configparser)")
     e = input("Press enter to close")
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
@@ -67,7 +67,7 @@ class dnd_cog(commands.Cog):
             # Linebreak (needed to define to avoid breaking some things)
             linebreak = "\n"
             # Creates the message object
-            message = await ctx.send("Page " + str(cur_page) + "/" + str(pages) + ":\n" + linebreak.join(chunk))
+            message = await ctx.send(f"Page {cur_page}/{pages}:\n{linebreak.join(chunk)}")
             # Adds arrow objects to the message
             await message.add_reaction("◀️")
             await message.add_reaction("▶️")
@@ -90,7 +90,7 @@ class dnd_cog(commands.Cog):
                         else:
                             chunk = input_list_a[(cur_page - 1) * per_page:]
                         # Edit the content and remove the reaction
-                        await message.edit(content="Page " + str(cur_page) + "/" + str(pages) + ":\n" + linebreak.join(chunk))
+                        await message.edit(content=f"Page {cur_page}/{pages}:\n{linebreak.join(chunk)}")
                         await message.remove_reaction(reaction, user)
 
                     # If back arrow emote is selected, return to the previous page
@@ -99,7 +99,7 @@ class dnd_cog(commands.Cog):
                         # Select the new content from the table
                         chunk = input_list_a[(cur_page - 1) * per_page:cur_page * per_page]
                         # Edit the content and remote the reaction
-                        await message.edit(content="Page " + str(cur_page) + "/" + str(pages) + ":\n" + linebreak.join(chunk))
+                        await message.edit(content=f"Page {cur_page}/{pages}:\n{linebreak.join(chunk)}")
                         await message.remove_reaction(reaction, user)
                 # After a while, remove the message
                 except asyncio.TimeoutError:
@@ -121,7 +121,7 @@ class dnd_cog(commands.Cog):
             # Linebreak (needed to define to avoid breaking some things)
             linebreak = "\n"
             # Creates the message object
-            message_a = await ctx.send("Page " + str(cur_page) + "/" + str(pages) + ":\n" + linebreak.join(chunk_a))
+            message_a = await ctx.send(f"Page {cur_page}/{pages}:\n{linebreak.join(chunk_a)}")
             message_b = await ctx.send(linebreak.join(chunk_b))
             # Adds arrow objects to the message
             await message_b.add_reaction("◀️")
@@ -147,7 +147,7 @@ class dnd_cog(commands.Cog):
                             chunk_a = input_list_a[(cur_page - 1) * per_page:]
                             chunk_b = input_list_b[(cur_page - 1) * per_page:]
                         # Edit the content and remove the reaction
-                        await message_a.edit(content="Page " + str(cur_page) + "/" + str(pages) + ":\n" + linebreak.join(chunk_a))
+                        await message_a.edit(content=f"Page {cur_page}/{pages}:\n{linebreak.join(chunk_a)}")
                         await message_b.edit(content=linebreak.join(chunk_b))
                         await message_b.remove_reaction(reaction, user)
 
@@ -158,7 +158,7 @@ class dnd_cog(commands.Cog):
                         chunk_a = input_list_a[(cur_page - 1) * per_page:cur_page * per_page]
                         chunk_b = input_list_b[(cur_page - 1) * per_page:cur_page * per_page]
                         # Edit the content and remote the reaction
-                        await message_a.edit(content="Page " + str(cur_page) + "/" + str(pages) + ":\n" + linebreak.join(chunk_a))
+                        await message_a.edit(content=f"Page {cur_page}/{pages}:\n{linebreak.join(chunk_a)}")
                         await message_b.edit(content=linebreak.join(chunk_b))
                         await message_b.remove_reaction(reaction, user)
                 # After a while, remove the message
@@ -405,10 +405,10 @@ class dnd_cog(commands.Cog):
             # Use alternative table if standard table is too long
             if len(creatures_table) + len(special_feats) + len(description) + len(source) > 1975:
                 creatures_table_length = str(len(creatures_table))
-                creatures_table = "Error: DND Creatures Table row for" + creature_name + "longer than allowed amount: " + creatures_table_length
+                creatures_table = f"Error: DND Creatures Table row for {creature_name} longer than allowed amount: {creatures_table_length}"
 
             # Adds the body table to the end of the message
-            creatures_msgs.append("```" + creatures_table + "\nFeats:\n" + special_feats + "\n\nNotes:\n" + description + "\n\n" + source + "```")
+            creatures_msgs.append(f"```{creatures_table}\nFeats:\n{special_feats}\n\nNotes:\n{description}\n\n{source}```")
 
         # Returns completed message
         return creatures_msgs
@@ -534,7 +534,7 @@ class dnd_cog(commands.Cog):
             )
 
             # Adds the table to the end of the message
-            creatures_msgs.append("```" + creatures_table + "\n\nDescription:\n" + action_description + "```")
+            creatures_msgs.append(f"```{creatures_table}\n\nDescription:\n{action_description}```")
 
         # Returns completed message
         return creatures_msgs
@@ -712,7 +712,7 @@ class dnd_cog(commands.Cog):
             creatures_msgs.append("Couldn't summon that creature with this spell level. Please try a higher spell level.")
             return creatures_msgs
         elif creature_amount < creature_amount_req:
-            creatures_msgs.append("Too many creatures summoned for spell level. Summoning " + str(creature_amount) + " instead.")
+            creatures_msgs.append(f"Too many creatures summoned for spell level. Summoning {creature_amount} instead.")
 
         # Creates an empty attack list
         creature_attack_actions = []
@@ -922,9 +922,9 @@ class dnd_cog(commands.Cog):
 
             if n % 16 == 0:
                 # Define the current page
-                footer = creature_name + ", HP: " + str(creature_hp * creature_amount) + " (Base HP:" + str(creature_hp) + " x " + str(creature_amount) + ")"
+                footer = f"{creature_name}, HP:{creature_hp * creature_amount} (Base HP:{creature_hp} x {creature_amount})"
                 cur_page += 1
-                page_number = str(cur_page) + "/" + str(math.ceil(len(creature_attack_rolls) / 16))
+                page_number = f"{cur_page}/{math.ceil(len(creature_attack_rolls) / 16)}"
                 # Build the table
                 creatures_table = table2ascii(
                     header=["To Hit", "Damage", "Damage Type", "Type Damage", "Total Damage"],
@@ -936,16 +936,16 @@ class dnd_cog(commands.Cog):
                 )
 
                 # Adds the table to the end of the message
-                creatures_msgs.append("```" + creatures_table + "```")
+                creatures_msgs.append(f"```{creatures_table}```")
 
                 # Clears the table body
                 creatures_table_body = []
 
         if creatures_table_body != []:
             # Define the current page
-            footer = creature_name + ", HP: " + str(creature_hp * creature_amount) + " (Base HP:" + str(creature_hp) + " x " + str(creature_amount) + ")"
+            footer = f"{creature_name}, HP: {creature_hp * creature_amount} (Base HP:{creature_hp} x {creature_amount})"
             cur_page += 1
-            page_number = str(cur_page) + "/" + str(math.ceil(len(creature_attack_rolls) / 16))
+            page_number = f"{cur_page}/{math.ceil(len(creature_attack_rolls) / 16)}"
             # Build the table
             creatures_table = table2ascii(
                 header=["To Hit", "Damage", "Damage Type", "Type Damage", "Total Damage"],
@@ -957,15 +957,15 @@ class dnd_cog(commands.Cog):
             )
 
             # Adds the table to the end of the message
-            creatures_msgs.append("```" + creatures_table + "```")
+            creatures_msgs.append(f"```{creatures_table}```")
 
         # Adds the source to the end of the message
         if len(creature_attack_rolls) == 1:
-            creatures_msgs.append("```Generated " + str(creature_amount) + " " + creature_name + " creature making " + str(len(creature_attack_rolls)) + " " + creature_action + " action. Source: " + creature_source + "```")
+            creatures_msgs.append(f"```Generated {creature_amount} {creature_name} creature making {len(creature_attack_rolls)} {creature_action} action. Source: {creature_source}```")
         elif creature_amount == 1:
-            creatures_msgs.append("```Generated " + str(creature_amount) + " " + creature_name + " creature making " + str(len(creature_attack_rolls)) + " " + creature_action + " actions. Source: " + creature_source + "```")
+            creatures_msgs.append(f"```Generated {creature_amount} {creature_name} creature making {len(creature_attack_rolls)} {creature_action} actions. Source: {creature_source}```")
         else:
-            creatures_msgs.append("```Generated " + str(creature_amount) + " " + creature_name + " creatures making " + str(len(creature_attack_rolls)) + " " + creature_action + " actions. Source: " + creature_source + "```")
+            creatures_msgs.append(f"```Generated {creature_amount} {creature_name} creatures making {len(creature_attack_rolls)} {creature_action} actions. Source: {creature_source}```")
 
         # Returns completed message
         return creatures_msgs
@@ -1756,9 +1756,9 @@ class dnd_cog(commands.Cog):
 
             # Flavor text for special d20 rolls
             if dice == "1d20" and result == 20:
-                await ctx.send(":sparkles: CRITICAL!! For " + dice + ", you rolled: " + str(result))
+                await ctx.send(f":sparkles: CRITICAL!! For {dice}, you rolled: {result}")
             elif dice == "1d20" and result == 1:
-                await ctx.send(":skull: FAILURE! For " + dice + ", you rolled: " + str(result))
+                await ctx.send(f":skull: FAILURE! For {dice}, you rolled: {result}")
 
             # Flavor text for d2 rolls
             elif dice == "1d2" and result == 1:
@@ -1768,14 +1768,23 @@ class dnd_cog(commands.Cog):
 
             # Don't show the result twice if there is only one dice
             elif "+" not in dice and dice[0] == "1":
-                await ctx.send(":game_die: For " + dice + ", you rolled: " + str(result))
+                await ctx.send(f":game_die: For {dice}, you rolled: {result}")
             else:
-                await ctx.send(":game_die: For " + dice + ", you rolled: " + str(diceOutput) + "\n= " + str(result))
+                await ctx.send(f":game_die: For {dice}, you rolled: {diceOutput}\n= {result}")
 
     @commands.hybrid_group(name="dnd", invoke_without_command=True)
     @commands.has_role("Bot Tester")
     async def dnd(self, ctx):
-        await ctx.send("```Sure thing boss. Please specify a subcommand to use this feature.\nHere is the subcommand list for the 'dnd' command:\n    'spell': casts a spell.\n    'summon': quickly summon any number of any creatures in the database.\n    'colin': roleplay as the luckiest(?) ranger(?) alive(???).'''")
+        msg = f"""
+```
+Sure thing boss. Please specify a subcommand to use this feature.
+Here is the subcommand list for the 'dnd' command:
+{self.bot.command_prefix}dnd spell - casts a spell.
+{self.bot.command_prefix}dnd summon - quickly summon any number of any creatures in the database.
+{self.bot.command_prefix}dnd colin - roleplay as the luckiest(?) ranger(?) alive(???).
+```
+"""
+        await ctx.send(msg)
 
     @dnd.command(name="spell", help="casts a spell")
     @commands.has_role("Bot Tester")
@@ -1791,15 +1800,19 @@ class dnd_cog(commands.Cog):
         ]
 
         if args is None:
-            msg = """Here is a list of spells:
-    === Summoning Spells ===
-    Usage: /spell <spell name> <spell level> <creature name> <creature amount> <creature action> <adv / dis>
-        /dnd spell conjure_animals 3 Velociraptor 8 Multiattack adv
-        /dnd spell conjure_woodland_beings 4
-        /dnd spell conjure_minor_elementals 4
-        /dnd spell conjure_elemental 5
-        /dnd spell conjure_fey 6
-        /dnd spell conjure_celestial 6 """
+            msg = f"""
+```
+Here is a list of spells:
+=== Summoning Spells ===
+Usage: /spell <spell name> <spell level> <creature name> <creature amount> <creature action> <adv / dis>
+{self.bot.command_prefix}dnd spell conjure_animals 3 Velociraptor 8 Multiattack adv
+{self.bot.command_prefix}dnd spell conjure_woodland_beings 4
+{self.bot.command_prefix}dnd spell conjure_minor_elementals 4
+{self.bot.command_prefix}dnd spell conjure_elemental 5
+{self.bot.command_prefix}dnd spell conjure_fey 6
+{self.bot.command_prefix}dnd spell conjure_celestial 6 
+```
+"""
 
             await ctx.send(msg)
 
@@ -1937,7 +1950,7 @@ class dnd_cog(commands.Cog):
                 m += 1
 
                 # While there are still rows to iterate
-                player_tables_body.append(["Attack #" + str(m), "", ""])
+                player_tables_body.append([f"Attack #{m}", "", ""])
 
                 while n < len(action):
                     # Append the next row to the body
@@ -1947,7 +1960,7 @@ class dnd_cog(commands.Cog):
                         player_damage_total += action[n][1]
                     n += 1
 
-                footer = "Total Damage: " + str(player_damage_total)
+                footer = f"Total Damage: {player_damage_total}"
 
                 # Build the table
                 player_tables = table2ascii(
@@ -1958,7 +1971,7 @@ class dnd_cog(commands.Cog):
 
                 )
 
-                player_tables_msg.append("```" + player_tables + "```")
+                player_tables_msg.append(f"```{player_tables}```")
 
             for msg in player_tables_msg:
                 await ctx.send(msg)

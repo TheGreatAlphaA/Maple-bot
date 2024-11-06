@@ -59,6 +59,7 @@ class music_cog(commands.Cog):
         return {'source': search.result()["result"][0]["link"], 'title': search.result()["result"][0]["title"]}
 
     async def play_next(self):
+
         if len(self.music_queue) > 0:
             self.is_playing = True
 
@@ -70,7 +71,7 @@ class music_cog(commands.Cog):
             loop = asyncio.get_event_loop()
             data = await loop.run_in_executor(None, lambda: self.ytdl.extract_info(m_url, download=False))
             song = data['url']
-            self.vc.play(discord.FFmpegPCMAudio(song, executable="ffmpeg.exe", **self.FFMPEG_OPTIONS), after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(), self.bot.loop))
+            self.vc.play(discord.FFmpegPCMAudio(song, executable="ffmpeg", **self.FFMPEG_OPTIONS), after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next(), self.bot.loop))
         else:
             self.is_playing = False
 
@@ -100,7 +101,7 @@ class music_cog(commands.Cog):
         else:
             self.is_playing = False
 
-    @commands.group(name="music", aliases=["m"], invoke_without_command=True)
+    @commands.hybrid_group(name="music", aliases=["m"], invoke_without_command=True)
     @commands.has_role("End User")
     async def music(self, ctx):
         await ctx.send("```Sure thing boss. Please specify a subcommand to use this feature.\nHere is the subcommand list for the 'music' command:\n    'q': displays the current music queue.\n    'p': finds the song on youtube and plays it in your current channel.\n    'skip': skips the current song being played.\n    'clear': stops the music and clears the queue.\n    'stop': disconnects the bot from the voice channel.\n    'pause': pauses the current song being played or resumes if already paused.\n    'resume': resumes playing the current song.\n    'remove': removes last song from the queue.```")
@@ -163,7 +164,7 @@ class music_cog(commands.Cog):
     async def queue(self, ctx):
         retval = ""
         for i in range(0, len(self.music_queue)):
-            retval += f"#{i+1} -" + self.music_queue[i][0]['title'] + "\n"
+            retval += f"#{i+1} -{self.music_queue[i][0]['title']}\n"
 
         if retval != "":
             await ctx.send(f"```queue:\n{retval}```")
