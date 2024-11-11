@@ -1,6 +1,6 @@
+
 import sys
 import datetime
-import math
 
 try:
     import asyncio
@@ -24,6 +24,13 @@ except ModuleNotFoundError:
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
 try:
+    import dateparser
+except ModuleNotFoundError:
+    print("Please install dateparser. (pip install dateparser)")
+    e = input("Press enter to close")
+    sys.exit("Process finished with exit code: ModuleNotFoundError")
+
+try:
     import discord
     from discord.ext import commands, tasks
 except ModuleNotFoundError:
@@ -40,9 +47,9 @@ except ModuleNotFoundError:
 
 
 class reminders_cog(commands.Cog):
-    #
-    #   Definitions
-    #
+    # ==================================================================================== #
+    #                                     DEFINITIONS                                      #
+    # ==================================================================================== #
     def __init__(self, bot):
         self.bot = bot
         
@@ -56,23 +63,44 @@ class reminders_cog(commands.Cog):
 
         self.RemindersTrackerLoop.start()
 
-    def set_timed_reminder(self, weeks=0, days=0, hours=0, minutes=0, seconds=0):
+    # ==================================================================================== #
+    #                                      FUNCTIONS                                       #
+    # ==================================================================================== #
 
-        now = datetime.datetime.now()
+    def Reminders_ParseTime(self, time_string):
+        try:
+            date_time = dateparser.parse(
+                time_string,
+                languages=['en'],
+                settings={"PREFER_DATES_FROM": 'future'})
+        except Exception as e:
+            date_time = None
+            print("Here is the error: ", str(e))
+            return
 
-        timed_reminder = now + datetime.timedelta(weeks=weeks, days=days, hours=hours, minutes=minutes, seconds=seconds)
+        return date_time
 
-        return timed_reminder
+    def Reminders_UpdateDatabase(self, reminder, author, message):
 
-    def set_scheduled_reminder(self, year, month, day, hour=0, minute=0, second=0):
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
 
-        scheduled_reminder = datetime.datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second, microsecond=0)
+        cursor = mydb.cursor(buffered=True)
 
-        return scheduled_reminder
+        query = """INSERT INTO reminders (REMINDER, AUTHOR, MESSAGE) VALUES (%(reminder)s, %(author)s, %(message)s)"""
+        cursor.execute(query, {'reminder': reminder, 'author': author, 'message': message})
 
-    async def five_minute_timer(self, ctx, name, seconds, reminder):
+        # Commit changes to database
+        mydb.commit()
 
-        timer = await ctx.send(f"I will remind you about {name} in {format_timespan(seconds)}.")
+    async def Reminders_FiveMinuteTimer(self, ctx, reminder, time_until, message):
+
+        timer = await ctx.send(f"I will remind you in {format_timespan(time_until+1)}.")
 
         now = datetime.datetime.now()
         time_remaining = (reminder - now).total_seconds()
@@ -81,91 +109,64 @@ class reminders_cog(commands.Cog):
         while time_remaining > 0:
             await asyncio.sleep(0.4)
             now = datetime.datetime.now()
-            time_remaining = math.trunc((reminder - now).total_seconds())
+            time_remaining = int((reminder - now).total_seconds())
             if time_remaining < 0:
                 break
             elif time_remaining % 5 == 0 and time_remaining != last_time_remaining:
-                await timer.edit(content=f"I will remind you about {name} in {format_timespan(time_remaining)}.")
+                await timer.edit(content=f"I will remind you in {format_timespan(time_remaining)}.")
                 last_time_remaining = time_remaining
             elif time_remaining < 10 and time_remaining != last_time_remaining:
-                await timer.edit(content=f"I will remind you about {name} in {format_timespan(time_remaining)}.")
+                await timer.edit(content=f"I will remind you in {format_timespan(time_remaining)}.")
                 last_time_remaining = time_remaining
         
-        await timer.edit(content=f"{ctx.author.mention}! Time is up! Reminder: {name}")
+        # Message constructor
+        author = ctx.author.mention
+        await timer.edit(content=f"Reminder: {message}\n{author}")
 
-    @commands.hybrid_command(name="timer")
+    # ==================================================================================== #
+    #                                      COMMANDS                                        #
+    # ==================================================================================== #
+
+    @commands.hybrid_command(name="remindme")
     @commands.has_role("Bot Tester")
-    async def timer(self, ctx, name, seconds=0, minutes=0, hours=0, days=0, weeks=0):
+    async def remindme(self, ctx, *, args):
+        message = await ctx.send("Processing...")
         try:
+            # Split the args
+            args_data = args.split('"', 1)
 
-            # Get the time between now and the reminder time calculated
-            now = datetime.datetime.now()
-            reminder = self.set_timed_reminder(weeks, days, hours, minutes, seconds)
-            timer_seconds = (reminder - now).total_seconds()
+            event_time = args_data[0]
 
-            author = ctx.author.mention
-
-            # If calculated time is less than 300 seconds (five minutes), use the fancy timer instead
-            if timer_seconds <= 300:
-                await self.five_minute_timer(ctx, name, timer_seconds, reminder)
-                return
-
+            if len(args_data) == 2:
+                event_message = args_data[1].strip('"')
             else:
+                event_message = "You requested a reminder at this time."
 
-                # Connect to the database
-                mydb = mysql.connector.connect(
-                    host=self.db_host,
-                    user=self.db_user,
-                    password=self.db_password,
-                    database=self.db_database
-                )
+            # Get reminder datetime object
+            reminder = self.Reminders_ParseTime(event_time)
+            now = datetime.datetime.now()
+            # Get time until reminder
+            time_until = int((reminder - now).total_seconds())
 
-                cursor = mydb.cursor(buffered=True)
+            if time_until < 300:
+                await self.Reminders_FiveMinuteTimer(ctx, reminder, time_until, event_message)
+                return
+            else:
+                # Message constructor
+                author = ctx.author.mention
+                reminder_text = f'{reminder:%B %d, %Y}'
+                await message.edit(content=f"I will remind you in {format_timespan(time_until)} on {reminder_text}.")
 
-                query = """INSERT INTO reminders (REMINDER, AUTHOR, NAME) VALUES (%(reminder)s, %(author)s, %(name)s)"""
-                cursor.execute(query, {'reminder': reminder, 'author': author, 'name': name})
-
-                # Commit changes to database
-                mydb.commit()
-
-                await ctx.send(f"I will remind you about {name} in {format_timespan(timer_seconds)}.")
-
-        except Exception as e:
-            print("Here is the error: ", str(e))
-            return
-
-    @commands.hybrid_command(name="reminder")
-    @commands.has_role("Bot Tester")
-    async def reminder(self, ctx, name, year, month, day, hour=0, minute=0, second=0):
-        try:
-
-            reminder = self.set_scheduled_reminder(year, month, day, hour, minute, second)
-
-            author = ctx.author.mention
-
-            # Connect to the database
-            mydb = mysql.connector.connect(
-                host=self.db_host,
-                user=self.db_user,
-                password=self.db_password,
-                database=self.db_database
-            )
-
-            cursor = mydb.cursor(buffered=True)
-
-            query = """INSERT INTO reminders (REMINDER, AUTHOR, NAME) VALUES (%(reminder)s, %(author)s, %(name)s)"""
-            cursor.execute(query, {'reminder': reminder, 'author': author, 'name': name})
-
-            # Commit changes to database
-            mydb.commit()
-
-            reminder_text = f'{reminder:%B %d, %Y}'
-
-            await ctx.send(f"I will remind you about {name} on {reminder_text}.")
+                self.Reminders_UpdateDatabase(reminder, author, event_message)
 
         except Exception as e:
-            print("Here is the error: ", str(e))
+            print(f"Exception occured during command: /remindme: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /remindme command: {e}")
             return
+
+    # ==================================================================================== #
+    #                                      MAIN LOOP                                       #
+    # ==================================================================================== #
 
     @tasks.loop(minutes=1.0)
     async def RemindersTrackerLoop(self):
@@ -182,7 +183,7 @@ class reminders_cog(commands.Cog):
 
             cursor = mydb.cursor(buffered=True)
 
-            query = """SELECT REMINDER, AUTHOR, NAME FROM reminders ORDER BY REMINDER"""
+            query = """SELECT REMINDER, AUTHOR, MESSAGE FROM reminders ORDER BY REMINDER"""
             cursor.execute(query)
 
             # Checks if query is empty
@@ -194,7 +195,7 @@ class reminders_cog(commands.Cog):
 
             reminder = datetime.datetime.strptime(data[0], "%Y-%m-%d %H:%M:%S.%f")
             author = data[1]
-            name = data[2]
+            message = data[2]
 
             # Plan the reminder task
             now = datetime.datetime.now()
@@ -208,7 +209,7 @@ class reminders_cog(commands.Cog):
 
             reminder_text = f'{reminder:%B %d, %Y}'
 
-            embed = discord.Embed(description=f"Reminder: {name}\n{author}", color=0x49cd74)
+            embed = discord.Embed(description=f"Reminder: {message}\n{author}", color=0x49cd74)
             embed.add_field(name="Date:", value=reminder_text)
             await channel.send(author, embed=embed)
 
@@ -220,7 +221,7 @@ class reminders_cog(commands.Cog):
             mydb.commit()
 
         except Exception as e:
-            print("Here is the error: ", str(e))
+            print(f"Exception occured during function: RemindersTrackerLoop(): {e}")
             return
 
     @RemindersTrackerLoop.before_loop
