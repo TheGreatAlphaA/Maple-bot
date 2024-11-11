@@ -3,7 +3,7 @@ import sys
 import json
 import time
 import datetime
-import subprocess  # For executing a shell command
+import subprocess
 
 try:
     import asyncio
@@ -49,9 +49,9 @@ except ModuleNotFoundError:
 
 
 class network_cog(commands.Cog):
-    #
-    #   Definitions
-    #
+    # ==================================================================================== #
+    #                                     DEFINITIONS                                      #
+    # ==================================================================================== #
     def __init__(self, bot):
         self.bot = bot
         
@@ -66,6 +66,10 @@ class network_cog(commands.Cog):
         self.network_tracker = int(self.config['DISCORD_CHANNELS']['network_tracker'])
 
         self.NetworkTrackerLoop.start()
+
+    # ==================================================================================== #
+    #                                      FUNCTIONS                                       #
+    # ==================================================================================== #
 
     def get_ip_address(self):
         url = 'https://ipinfo.io/json'
@@ -112,8 +116,8 @@ class network_cog(commands.Cog):
 
         cursor = mydb.cursor(buffered=True)
 
-        query = """UPDATE network_public_ip SET IP = '%(ip_address)s' WHERE ID = 1"""
-        cursor.execute(query, {'ip_address': ip_address})
+        query = """UPDATE network_public_ip SET IP = %(ip_address)s WHERE ID = %(id)s"""
+        cursor.execute(query, {'ip_address': ip_address, 'id': 1})
 
         # Commit changes to database
         mydb.commit()
@@ -201,136 +205,153 @@ class network_cog(commands.Cog):
             # Write the new ip to the file
             self.update_ip_address(new_ip_address)
 
-#                         - NETWORK COMMANDS                           -
+    # ==================================================================================== #
+    #                                      COMMANDS                                        #
+    # ==================================================================================== #
 
     # Command to send a ping to test network latency
     @commands.hybrid_command(name="ping", help="send a ping to test network latency")
     async def ping(self, ctx, host="localhost"):
+        try:
+            # Get the start time
+            pingtime = time.time()
+            # Send a message to the channel
+            pingms = await ctx.send("Pinging...")
 
-        # Get the start time
-        pingtime = time.time()
-        # Send a message to the channel
-        pingms = await ctx.send("Pinging...")
+            for i in range(3):
+                if self.get_ping(host) is True:
+                    # Subtract the start time from the current time
+                    ping = time.time() - pingtime
+                    # Return the ping delay time
+                    await pingms.edit(content=f"`maple-bot.lan ===> {host}` :ping_pong: time is `{ping:.01f} seconds`")
+                    return
 
-        for i in range(3):
-            if self.get_ping(host) is True:
-                # Subtract the start time from the current time
-                ping = time.time() - pingtime
                 # Return the ping delay time
-                await pingms.edit(content=f"`maple-bot.lan ===> {host}` :ping_pong: time is `{ping:.01f} seconds`")
-                return
+                await pingms.edit(content=f"`maple-bot.lan ===> {host}` :x: Unable to reach `{host}`")
 
-            # Return the ping delay time
-            await pingms.edit(content=f"`maple-bot.lan ===> {host}` :x: Unable to reach `{host}`")
+        except Exception as e:
+            print(f"Exception occured during command: /ping: {e}")
+            await ctx.send(f"Oops! I couldn't run the /ping command: {e}")
+            return
 
     # Command to wake a local computer
     @commands.hybrid_command(name="wakeonlan", help="tells a computer on the network to turn on")
     async def wakeonlan(self, ctx, host):
+        message = await ctx.send("Processing...")
+        try:
+            mac = self.get_mac(host.lower())
 
-        mac = self.get_mac(host.lower())
+            if (mac is not None):
 
-        if (mac is not None):
+                if self.get_ping(host) is True:
+                    await message.edit(content=f"`{host}` appears to already be online and responding to pings. Please check your connection.")
+                    return
 
-            if self.get_ping(host) is True:
-                await ctx.send(f"`{host}` appears to already be online and responding to pings. Please check your connection.")
-                return
+                await message.edit(content=":magic_wand: Sending the magic packet... Please wait.")
 
-            message = await ctx.send(":magic_wand: Sending the magic packet... Please wait.")
+                send_magic_packet(mac)
 
-            send_magic_packet(mac)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[                              ] 0% \nAttempt(1/6) 2min 54sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█                             ] 3% \nAttempt(1/6) 2min 48sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██                            ] 7% \nAttempt(1/6) 2min 42sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███                           ] 10% \nAttempt(1/6) 2min 36sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Attempting connection...\n`[████                          ] 13% \nAttempt(1/6) 2min 30sec`")
 
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[                              ] 0% \nAttempt(1/6) 2min 54sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█                             ] 3% \nAttempt(1/6) 2min 48sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██                            ] 7% \nAttempt(1/6) 2min 42sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███                           ] 10% \nAttempt(1/6) 2min 36sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Attempting connection...\n`[████                          ] 13% \nAttempt(1/6) 2min 30sec`")
+                if self.get_ping(host) is True:
+                    await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
+                    return
 
-            if self.get_ping(host) is True:
-                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
-                return
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████                         ] 17% \nAttempt(2/6) 2min 24sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████                        ] 20% \nAttempt(2/6) 2min 18sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████                       ] 23% \nAttempt(2/6) 2min 12sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████                      ] 27% \nAttempt(2/6) 2min 6sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Attempting connection...\n`[█████████                     ] 30% \nAttempt(2/6) 2min`")
 
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████                         ] 17% \nAttempt(2/6) 2min 24sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████                        ] 20% \nAttempt(2/6) 2min 18sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████                       ] 23% \nAttempt(2/6) 2min 12sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████                      ] 27% \nAttempt(2/6) 2min 6sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Attempting connection...\n`[█████████                     ] 30% \nAttempt(2/6) 2min`")
+                if self.get_ping(host) is True:
+                    await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
+                    return
 
-            if self.get_ping(host) is True:
-                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
-                return
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████████                    ] 33% \nAttempt(3/6) 1min 54sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████████                   ] 37% \nAttempt(3/6) 1min 48sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████                  ] 40% \nAttempt(3/6) 1min 42sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████                 ] 43% \nAttempt(3/6) 1min 36sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Attempting connection...\n`[██████████████                ] 47% \nAttempt(3/6) 1min 30sec`")
 
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████████                    ] 33% \nAttempt(3/6) 1min 54sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████████                   ] 37% \nAttempt(3/6) 1min 48sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████                  ] 40% \nAttempt(3/6) 1min 42sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████                 ] 43% \nAttempt(3/6) 1min 36sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Attempting connection...\n`[██████████████                ] 47% \nAttempt(3/6) 1min 30sec`")
+                if self.get_ping(host) is True:
+                    await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
+                    return
 
-            if self.get_ping(host) is True:
-                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
-                return
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████████████               ] 50% \nAttempt(4/6) 1min 24sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████████              ] 53% \nAttempt(4/6) 1min 18sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████████             ] 57% \nAttempt(4/6) 1min 12sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████████████████            ] 60% \nAttempt(4/6) 1min 6sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Attempting connection...\n`[███████████████████           ] 63% \nAttempt(4/6) 1min`")
 
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████████████               ] 50% \nAttempt(4/6) 1min 24sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████████              ] 53% \nAttempt(4/6) 1min 18sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████████             ] 57% \nAttempt(4/6) 1min 12sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████████████████            ] 60% \nAttempt(4/6) 1min 6sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Attempting connection...\n`[███████████████████           ] 63% \nAttempt(4/6) 1min`")
+                if self.get_ping(host) is True:
+                    await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
+                    return
 
-            if self.get_ping(host) is True:
-                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
-                return
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████████████          ] 67% \nAttempt(5/6) 54sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████████████         ] 70% \nAttempt(5/6) 48sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████████████████████        ] 73% \nAttempt(5/6) 42sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████████████████████       ] 77% \nAttempt(5/6) 36sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████████████████      ] 80% \nAttempt(5/6) 30sec`")
 
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████████████          ] 67% \nAttempt(5/6) 54sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████████████         ] 70% \nAttempt(5/6) 48sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████████████████████        ] 73% \nAttempt(5/6) 42sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████████████████████       ] 77% \nAttempt(5/6) 36sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████████████████      ] 80% \nAttempt(5/6) 30sec`")
+                if self.get_ping(host) is True:
+                    await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
+                    return
 
-            if self.get_ping(host) is True:
-                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
-                return
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████████████████     ] 83% \nAttempt(6/6) 24sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████████████████████████    ] 87% \nAttempt(6/6) 18sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████████████████████████   ] 90% \nAttempt(6/6) 12sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████████████████████  ] 93% \nAttempt(6/6) 6sec`")
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████████████████████ ] 97% \nAttempt(6/6) 1sec`")
 
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████████████████     ] 83% \nAttempt(6/6) 24sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[██████████████████████████    ] 87% \nAttempt(6/6) 18sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[███████████████████████████   ] 90% \nAttempt(6/6) 12sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[████████████████████████████  ] 93% \nAttempt(6/6) 6sec`")
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Please wait.\n`[█████████████████████████████ ] 97% \nAttempt(6/6) 1sec`")
+                if self.get_ping(host) is True:
+                    await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
+                    return
 
-            if self.get_ping(host) is True:
-                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Success! :white_check_mark:\n`[██████████████████████████████] SYSTEM ONLINE`")
-                return
+                await asyncio.sleep(6)
+                await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Failed. :x:\n`[██████████████████████████████] UNABLE TO CONNECT`")
+            else:
+                await ctx.send(f"{host} isn't a valid hostname or IP address.")
 
-            await asyncio.sleep(6)
-            await message.edit(content=f":magic_wand: Magic packet has been sent to {host}. Failed. :x:\n`[██████████████████████████████] UNABLE TO CONNECT`")
-        else:
-            await ctx.send(f"{host} isn't a valid hostname or IP address.")
+        except Exception as e:
+            print(f"Exception occured during command: /remindme: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /remindme command: {e}")
+            return
+
+    # ==================================================================================== #
+    #                                      MAIN LOOP                                       #
+    # ==================================================================================== #
 
     @tasks.loop(hours=23)
     async def NetworkTrackerLoop(self):
@@ -340,8 +361,12 @@ class network_cog(commands.Cog):
                 await self.get_public_ip_address()
 
             except Exception as e:
-                print("Exception occured during network loop: ", str(e))
+                print(f"Exception occured during function: NetworkTrackerLoop(): {e}")
                 await asyncio.sleep(20)
                 continue
             break
         await asyncio.sleep(60)
+
+    @NetworkTrackerLoop.before_loop
+    async def before_NetworkTrackerLoop(self):
+        await self.bot.wait_until_ready()
