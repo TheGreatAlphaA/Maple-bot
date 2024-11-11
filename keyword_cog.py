@@ -1,3 +1,4 @@
+
 import sys
 
 try:
@@ -17,9 +18,9 @@ except ModuleNotFoundError:
 
 
 class keyword_cog(commands.Cog):
-    #
-    #   Definitions
-    #
+    # ==================================================================================== #
+    #                                     DEFINITIONS                                      #
+    # ==================================================================================== #
     def __init__(self, bot):
         self.bot = bot
         
@@ -30,6 +31,10 @@ class keyword_cog(commands.Cog):
         self.tracker_channel = int(self.config['DISCORD_CHANNELS']['deal_tracker'])
 
         self.deal_notifications = int(self.config['DISCORD_ROLES']['deal_notifications'])
+        
+    # ==================================================================================== #
+    #                                      FUNCTIONS                                       #
+    # ==================================================================================== #
 
     def read_from_txt(self, path):
         # Initialize variables
@@ -104,6 +109,10 @@ class keyword_cog(commands.Cog):
         if isinstance(text, str) is True:
             return text.partition(delim)[0]
 
+    # ==================================================================================== #
+    #                                    MAIN FUNCTION                                     #
+    # ==================================================================================== #
+
     def keyword_check(self, text):
         keywords = self.read_from_txt("keyword_check/keywords.txt")
         negatives = self.read_from_txt("keyword_check/negatives.txt")
@@ -166,10 +175,15 @@ class keyword_cog(commands.Cog):
         else:
             return (False, None)
 
+    # ==================================================================================== #
+    #                                      COMMANDS                                        #
+    # ==================================================================================== #
+
     @commands.hybrid_group(name="keyword", aliases=["keywords", "kw"], invoke_without_command=True)
     @commands.has_role("Bot Tester")
-    async def keyword(self, ctx, subcommand=None, arg1=None):
-        msg = f"""
+    async def keyword(self, ctx):
+        try:
+            msg = f"""
 ```
 Sure thing boss. Please specify a subcommand to use this feature.
 Here is the subcommand list for the 'keyword' command:
@@ -178,52 +192,78 @@ Here is the subcommand list for the 'keyword' command:
 {self.bot.command_prefix}keyword list - lists keywords on the keyword list
 ```
 """
-        await ctx.send(msg)
+            await ctx.send(msg)
+
+        except Exception as e:
+            print(f"Exception occured during command: /keyword: {e}")
+            await ctx.send(f"Oops! I couldn't run the /keyword command: {e}")
+            return
 
     @keyword.command(name="add", help="adds keywords to the keyword list")
     @commands.has_role("Bot Tester")
     async def add(self, ctx, *, args):
-        if not args:
-            await ctx.send("Please specify a keyword to add to the list.")
-        else:
-            args = args.split()
-            for arg in args:
-                keyword_match = self.keyword_check(arg)
-                if (keyword_match[0]):
-                    await ctx.send(f"`{arg}` is already on the list")
-                else:
-                    self.write_to_txt("keyword_check/keywords.txt", arg)
+        message = await ctx.send("Processing...")
+        try:
+            if not args:
+                await message.edit(content="Please specify a keyword to add to the list.")
+            else:
+                args = args.split()
+                for arg in args:
                     keyword_match = self.keyword_check(arg)
                     if (keyword_match[0]):
-                        await ctx.send(f"Added `{arg}` to the keyword list")
+                        await message.edit(content=f"`{arg}` is already on the list")
                     else:
-                        await ctx.send(f"Uh oh! I was unable to add `{arg}` to the list")
+                        self.write_to_txt("keyword_check/keywords.txt", arg)
+                        keyword_match = self.keyword_check(arg)
+                        if (keyword_match[0]):
+                            await message.edit(content=f"Added `{arg}` to the keyword list")
+                        else:
+                            await message.edit(content=f"Uh oh! I was unable to add `{arg}` to the list")
+
+        except Exception as e:
+            print(f"Exception occured during command: /keyword add: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /keyword add command: {e}")
+            return
 
     @keyword.command(name="remove", help="removes keywords from the keyword list")
     @commands.has_role("Bot Tester")
     async def remove(self, ctx, *, args):
-        if not args:
-            await ctx.send("Please specify a keyword to remove from the list.")
-        else:
-            args = args.split()
-            for arg in args:
-                keyword_match = self.keyword_check(arg)
-                if (keyword_match[0]):
-                    self.remove_from_txt("keyword_check/keywords.txt", arg)
+        message = await ctx.send("Processing...")
+        try:
+            if not args:
+                await message.edit(content="Please specify a keyword to remove from the list.")
+            else:
+                args = args.split()
+                for arg in args:
                     keyword_match = self.keyword_check(arg)
                     if (keyword_match[0]):
-                        await ctx.send(f"Uh oh! I was unable to remove `{arg}` from the list")
+                        self.remove_from_txt("keyword_check/keywords.txt", arg)
+                        keyword_match = self.keyword_check(arg)
+                        if (keyword_match[0]):
+                            await message.edit(content=f"Uh oh! I was unable to remove `{arg}` from the list")
+                        else:
+                            await message.edit(content=f"Removed `{arg}` from the keyword list")
                     else:
-                        await ctx.send(f"Removed `{arg}` from the keyword list")
-                else:
-                    await ctx.send(f"`{arg}` isn't on the list.")
+                        await message.edit(content=f"`{arg}` isn't on the list.")
+
+        except Exception as e:
+            print(f"Exception occured during command: /keyword remove: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /keyword remove command: {e}")
+            return
 
     @keyword.command(name="list", help="lists keywords on the keyword list")
     @commands.has_role("Bot Tester")
     async def list(self, ctx):
-        keywords = self.read_from_txt("keyword_check/keywords.txt")
-        keyword_output = "\n".join((line) for line in keywords)
-        await ctx.send(f"Here is a list of all of the keywords that I'm watching for: \n```{keyword_output}```")
+        message = await ctx.send("Processing...")
+        try:
+            keywords = self.read_from_txt("keyword_check/keywords.txt")
+            keyword_output = "\n".join((line) for line in keywords)
+            await message.edit(content=f"Here is a list of all of the keywords that I'm listening for: \n```{keyword_output}```")
+
+        except Exception as e:
+            print(f"Exception occured during command: /keyword list: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /keyword list command: {e}")
+            return
 
     @commands.Cog.listener()
     async def on_message(self, ctx):

@@ -1,14 +1,19 @@
 
 import sys
 import random
-import math
-import datetime
-import subprocess  # For executing a shell command
+import subprocess
 
 try:
     import asyncio
 except ModuleNotFoundError:
     print("Please install asyncio. (pip install asyncio)")
+    e = input("Press enter to close")
+    sys.exit("Process finished with exit code: ModuleNotFoundError")
+
+try:
+    import configparser
+except ModuleNotFoundError:
+    print("Please install configparser. (pip install configparser)")
     e = input("Press enter to close")
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
@@ -21,13 +26,23 @@ except ModuleNotFoundError:
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
 
-# ------------------------- General Commands -----------------
 class help_cog(commands.Cog):
+    # ==================================================================================== #
+    #                                     DEFINITIONS                                      #
+    # ==================================================================================== #
     def __init__(self, bot):
         self.bot = bot
+        
+        # Config File
+        self.config = configparser.ConfigParser()
+        self.config.read("info.ini")
+
         self.help_message = ""
-        self.text_channel_list = []
         self.set_message()
+
+    # ==================================================================================== #
+    #                                      FUNCTIONS                                       #
+    # ==================================================================================== #
 
     def set_message(self):
         self.help_message = f"""
@@ -66,6 +81,10 @@ class help_cog(commands.Cog):
 {self.bot.command_prefix}keyword remove <keyword> - removes keywords from the keyword list
 {self.bot.command_prefix}keyword list - lists keywords on the keyword list
 ```
+**Notification commands:**
+```
+{self.bot.command_prefix}remindme <date/time> [message] - creates a reminder message to send later.
+```
 **Finance commands:**
 ```
 {self.bot.command_prefix}stock <stock ticker> - gets the daily stock price for the selected stock ticker
@@ -74,18 +93,21 @@ class help_cog(commands.Cog):
 **Networking commands:**
 ```
 {self.bot.command_prefix}ping [hostname/ip address] - sends a ping to test network latency
-{self.bot.command_prefix}wakeonlan [hostname/ip address] - sends a magic packet to wake a local device
+{self.bot.command_prefix}wakeonlan <hostname/ip address> - sends a magic packet to wake a local device
 ```
 """
-
-    # ------------------------- Admin Commands -----------------
 
     # Changes discord presence to hint the bot's help command
     @commands.Cog.listener()
     async def on_ready(self):
-        print("\nMaple-Bot v6.2\nCreated by Alpha_A [2021-2024]\n")
+        print("\nMaple-Bot v6.3\nCreated by Alpha_A [2021-2024]\n")
         await self.bot.change_presence(activity=discord.Game(f"{self.bot.command_prefix}help"))
         print(f"Bot Is Ready. Logged in as {self.bot.user}")
+
+    # ==================================================================================== #
+    #                                      COMMANDS                                        #
+    # ==================================================================================== #
+    # ---------------------------------- Admin Commands ---------------------------------- #
 
     # Command to force-exit the bot
     @commands.command(name="exit")
@@ -98,79 +120,112 @@ class help_cog(commands.Cog):
     @commands.is_owner()
     async def reboot(self, ctx):
         command = ['reboot']
-
         subprocess.call(command)
 
     # Command to sync the bot's command tree
-    @commands.command(name="sync")
+    @commands.hybrid_command(name="sync", help="sync the bot command tree with Discord.")
     @commands.is_owner()
     async def sync(self, ctx: commands.Context) -> None:
-        await ctx.send("Starting global command sync. This may take a while...")
-        # Sync the command tree
-        synced = await ctx.bot.tree.sync()
-        await ctx.send(f"Synced {len(synced)} commands globally")
+        message = await ctx.send("Processing...")
+        try:
+            # Sync the command tree
+            synced = await ctx.bot.tree.sync()
+            await message.edit(content=f"Synced {len(synced)} commands globally.")
 
-    # ------------------------- Generic Commands -----------------
+        except Exception as e:
+            print(f"Exception occured during command: /sync: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /sync command: {e}")
+            return
+
+    # --------------------------------- Generic Commands --------------------------------- #
 
     # Command to display the help text
-    @commands.command(name="help", help="displays all the available commands")
+    @commands.hybrid_command(name="help", help="displays all the available commands")
     async def help(self, ctx):
-        await ctx.send(self.help_message)
+        try:
+            await ctx.send(self.help_message)
+
+        except Exception as e:
+            print(f"Exception occured during command: /help: {e}")
+            await ctx.send(f"Oops! I couldn't run the /help command: {e}")
+            return
 
     # Command to tells the user what their name is
-    @commands.command(name="whoami", help="tells the user what their name is")
+    @commands.hybrid_command(name="whoami", help="tells the user what their name is")
     async def whoami(self, ctx):
-        name = ctx.message.author.display_name
-        true_name = ctx.message.author.name
-        # Check if the user has the same name as the author
-        if name == 'Alpha A':
-            # If the user is the author, send a specical message
-            if true_name == 'the_great_alpha_a':
-                await ctx.send(f"Hi {name}. How are you doing today?")
-            # If the user is not the author, but shares their name, send a special message
+        try:
+            name = ctx.message.author.display_name
+            true_name = ctx.message.author.name
+            # Check if the user has the same name as the author
+            if name == 'Alpha A':
+                # If the user is the author, send a specical message
+                if true_name == 'the_great_alpha_a':
+                    await ctx.send(f"Hi {name}. How are you doing today?")
+                # If the user is not the author, but shares their name, send a special message
+                else:
+                    await ctx.send(f"Your name is {name}. But... you know you can't fool me, right? I know you aren't really him.")
+            # Otherwise, send the user their name
             else:
-                await ctx.send(f"Your name is {name}. But... you know you can't fool me, right? I know you aren't really him.")
-        # Otherwise, send the user their name
-        else:
-            await ctx.send(f"Your name is {name}.")
+                await ctx.send(f"Your name is {name}.")
+
+        except Exception as e:
+            print(f"Exception occured during command: /whoami: {e}")
+            await ctx.send(f"Oops! I couldn't run the /whoami command: {e}")
+            return
 
     # Command to tell the user what their status is
-    @commands.command(name="whereami", help="tells the user what their status is")
+    @commands.hybrid_command(name="whereami", help="tells the user what their status is")
     async def whereami(self, ctx):
-        # Check if the user actually has a status set
         try:
-            # If a status is set, set the variable to that status
-            location = ctx.message.author.activities[0].name
-        except IndexError:
-            # If no status is set, set the variable to none
-            location = None
+            # Check if the user actually has a status set
+            try:
+                # If a status is set, set the variable to that status
+                location = ctx.message.author.activities[0].name
+            except IndexError:
+                # If no status is set, set the variable to none
+                location = None
 
-        # If no status is set, send a generic message
-        if location is None:
-            await ctx.send(":thinking: It looks like you are currently somewhere on the internet.")
-        # If a status is set, send the user their status
-        else:
-            await ctx.send(f":earth_americas: It looks like you are currently {location}")
+            # If no status is set, send a generic message
+            if location is None:
+                await ctx.send(":thinking: It looks like you are currently somewhere on the internet.")
+            # If a status is set, send the user their status
+            else:
+                await ctx.send(f":earth_americas: It looks like you are currently {location}")
 
-# ------------------------- Secret Commands -----------------
+        except Exception as e:
+            print(f"Exception occured during command: /whereami: {e}")
+            await ctx.send(f"Oops! I couldn't run the /whereami command: {e}")
+            return
+
+    # ---------------------------------- Secret Commands --------------------------------- #
 
     # Command to make the bot say 'nya'
     @commands.command(name="nya")
     async def nya(self, ctx):
-        await ctx.send("Nya!  (=^-ω-^=)")
+        try:
+            await ctx.send("Nya!  (=^-ω-^=)")
+
+        except Exception as e:
+            print(f"Exception occured during command: /nya: {e}")
+            await ctx.send(f"Oops! I couldn't run the /nya command: {e}")
+            return
 
     # Command to make the bot cringe
     @commands.command(name="cringe", aliases=['ಠ_ಠ', 'ಠಠ', 'ಠ', 'disapproval', 'disgust'])
     async def cringe(self, ctx):
-        await ctx.send("Yikes.  ಠ_ಠ")
+        try:
+            await ctx.send("Yikes.  ಠ_ಠ")
+
+        except Exception as e:
+            print(f"Exception occured during command: /cringe: {e}")
+            await ctx.send(f"Oops! I couldn't run the /cringe command: {e}")
+            return
 
     # Command to make the bot say a jojo reference
     @commands.command(name="za_warudo", aliases=['the_world', "stop_time"])
     async def za_warudo(self, ctx):
-
+        message = await ctx.send(content=":clock2: Za Warudo! Toki yo tomare!")
         try:     
-            message = await ctx.send(content=":clock2: Za Warudo! Toki yo tomare!")
-
             await asyncio.sleep(5)
             await message.edit(content=":clock3: Ichi-byō keika.")
             await asyncio.sleep(7 - 5)
@@ -205,18 +260,25 @@ class help_cog(commands.Cog):
             await message.delete()
 
         except Exception as e:
-            print("Here is the error: ", str(e))
+            print(f"Exception occured during command: /za_warudo: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /za_warudo command: {e}")
             return
 
     # Command to make the bot send a subscribe link for Charlie Slimecicle
     @commands.command(name="subscribe_to_slimecicle", aliases=['slimecicle', 'subscribe_to_charlieslimecicle'])
     async def subscribe_to_slimecicle(self, ctx):
-        x = random.randint(1, 20)
-        if x < 10:
-            await ctx.send("Subscribe to Charlie Slimecicle!\nhttps://www.youtube.com/user/Slimecicle?sub_confirmation=1")
-        elif x < 20:
-            await ctx.send("Subscribe to Charlie Slimecicle!\nhttps://www.twitch.tv/subs/slimecicle")
-        elif x == 20:
-            await ctx.send("Sbscrb t Chrl Slmccl!\nhttps://www.youtube.com/@Slmccl?sub_confirmation=1")
-        else:
-            await ctx.send("Subscribe to Charlie Slimecicle!\nhttps://www.youtube.com/user/Slimecicle?sub_confirmation=1")
+        try:
+            x = random.randint(1, 20)
+            if x < 10:
+                await ctx.send("Subscribe to Charlie Slimecicle!\nhttps://www.youtube.com/user/Slimecicle?sub_confirmation=1")
+            elif x < 20:
+                await ctx.send("Subscribe to Charlie Slimecicle!\nhttps://www.twitch.tv/subs/slimecicle")
+            elif x == 20:
+                await ctx.send("Sbscrb t Chrl Slmccl!\nhttps://www.youtube.com/@Slmccl?sub_confirmation=1")
+            else:
+                await ctx.send("Subscribe to Charlie Slimecicle!\nhttps://www.youtube.com/user/Slimecicle?sub_confirmation=1")
+                
+        except Exception as e:
+            print(f"Exception occured during command: /subscribe_to_slimecicle: {e}")
+            await ctx.send(f"Oops! I couldn't run the /subscribe_to_slimecicle command: {e}")
+            return

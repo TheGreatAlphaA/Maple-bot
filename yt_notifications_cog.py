@@ -1,12 +1,6 @@
+
 import sys
 import json
-
-try:
-    import asyncio
-except ModuleNotFoundError:
-    print("Please install asyncio. (pip install asyncio)")
-    e = input("Press enter to close")
-    sys.exit("Process finished with exit code: ModuleNotFoundError")
 
 try:
     import urllib.request
@@ -38,9 +32,9 @@ except ModuleNotFoundError:
 
 
 class yt_notifications_cog(commands.Cog):
-    #
-    #   Definitions
-    #
+    # ==================================================================================== #
+    #                                     DEFINITIONS                                      #
+    # ==================================================================================== #
     def __init__(self, bot):
         self.bot = bot
         
@@ -86,7 +80,7 @@ class yt_notifications_cog(commands.Cog):
         self.YouTubeTrackerLoop.start()
 
     # ==================================================================================== #
-    #                                YOUTUBE NOTIFICATIONS                                 #
+    #                                      FUNCTIONS                                       #
     # ==================================================================================== #
 
     def GetDiscordChannel(self, tag):
@@ -126,13 +120,15 @@ class yt_notifications_cog(commands.Cog):
         return f"<@&{role}>"
 
     def YouTubeGetPlaylistID(self, username):
-        # Make an API call to YouTube to get the five most recent videos from a given channel's 'upload playlist'
+        # Request API Data
         url = f"https://www.googleapis.com/youtube/v3/channels?part=id&forHandle={username}&key={self.api_key}"
         resp = urllib.request.urlopen(url)
         api_data = json.load(resp)
 
+        # Get the channel id
         channel_id = api_data["items"][0]["id"]
 
+        # Convert channel id to upload playlist id
         playlist_id = channel_id.replace("UC", "UU", 1)
 
         return playlist_id
@@ -140,11 +136,9 @@ class yt_notifications_cog(commands.Cog):
     def YouTubeUpdateVideoIDs(self, channel_name, playlist_id, tag):
 
         try:
-            # ------------------------------ Define the lists ------------------------------- #
             new_video_ids = []
             old_video_ids = []
 
-            # ------------------------------ Get new video ids ------------------------------ #
             # Make an API call to YouTube to get the five most recent videos from a given channel's 'upload playlist'
             maxResults = 5
             url = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults={maxResults}&playlistId={playlist_id}&key={self.api_key}"
@@ -154,7 +148,8 @@ class yt_notifications_cog(commands.Cog):
             for i in range(maxResults):
                 new_video_ids.append(api_data["items"][i]["snippet"]["resourceId"]["videoId"])
 
-            # ------------------------------ Get old video ids ------------------------------ #
+            # Get old video ids
+
             # Connect to the database
             mydb = mysql.connector.connect(
                 host=self.db_host,
@@ -174,7 +169,7 @@ class yt_notifications_cog(commands.Cog):
             for i in range(len(db_data)):
                 old_video_ids.append(db_data[i][0])
 
-            # -------------------- Check the difference between old and new -------------------- #
+            # Check the difference between old and new
             # If there is no difference, return none
             if set(old_video_ids) == set(new_video_ids):
                 return None
@@ -182,14 +177,14 @@ class yt_notifications_cog(commands.Cog):
             # If there are new videos, ammend the database and return the new video ids
             else:
 
-                # -------------------- Remove unmonitored videos -------------------- #
+                # Remove unmonitored videos
                 remove_these_videos = set(old_video_ids).difference(new_video_ids)
 
                 for video_id in remove_these_videos:
                     query = """DELETE FROM yt_videos WHERE VIDEO_ID = %(video_id)s"""
                     cursor.execute(query, {'video_id': video_id})
 
-                # -------------------- Add newly posted videos -------------------- #
+                # Add newly posted videos
                 add_these_videos = set(new_video_ids).difference(old_video_ids)
 
                 for video_id in add_these_videos:
@@ -279,6 +274,10 @@ class yt_notifications_cog(commands.Cog):
             print("Exception occured during YoutubeInitUpdate function: ", str(e))
             return
 
+    # ==================================================================================== #
+    #                                    MAIN FUNCTION                                     #
+    # ==================================================================================== #
+
     def YoutubeUpdate(self, channel_name):
         # playlist_id = self.yt_channels[channel_name]["playlist_id"]
         tag = self.yt_channels[channel_name]["tag"]
@@ -325,22 +324,30 @@ class yt_notifications_cog(commands.Cog):
             print("Exception occured during YoutubeUpdate function: ", str(e))
             return
 
+    # ==================================================================================== #
+    #                                      COMMANDS                                        #
+    # ==================================================================================== #
+
     @commands.hybrid_command(name="yt_playlist_id")
     @commands.is_owner()
     async def yt_playlist_id(self, ctx, youtube_username):
-
+        message = await ctx.send("Processing...")
         try:
-
             playlist_id = self.YouTubeGetPlaylistID(youtube_username)
 
             if playlist_id is not None:
-                await ctx.send(f"The playlist id for {youtube_username} is {playlist_id}")
+                await message.edit(content=f"The playlist id for {youtube_username} is {playlist_id}")
             else:
-                await ctx.send("Could not find a valid YouTube channel for that handle. Sorry.")
+                await message.edit(content="Could not find a valid YouTube channel for that handle. Sorry.")
 
         except Exception as e:
-            print("Exception occured during yt_playlist_id function: ", str(e))
+            print(f"Exception occured during command: /yt_playlist_id: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /yt_playlist_id command: {e}")
             return
+
+    # ==================================================================================== #
+    #                                      MAIN LOOP                                       #
+    # ==================================================================================== #
 
     @tasks.loop(seconds=900)
     async def YouTubeTrackerLoop(self):
@@ -373,7 +380,7 @@ class yt_notifications_cog(commands.Cog):
                         await channel.send(f"**{channel_name}** uploaded a video: **{video_name}**\n{role}\n{url}")
 
         except Exception as e:
-            print("Exception occured during YouTubeTrackerLoop function: ", str(e))
+            print(f"Exception occured during function: YouTubeTrackerLoop(): {e}")
             return
 
     @YouTubeTrackerLoop.before_loop
@@ -384,5 +391,5 @@ class yt_notifications_cog(commands.Cog):
             self.YoutubeInitUpdate()
 
         except Exception as e:
-            print("Exception occured during before_YouTubeTrackerLoop function: ", str(e))
+            print(f"Exception occured during function: before_YouTubeTrackerLoop(): {e}")
             return

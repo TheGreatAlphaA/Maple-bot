@@ -79,14 +79,3 @@ except Exception as e:
     print("Error attempting to launch bot: ", str(e))
     e = input("Press enter to close")
     sys.exit()
-
-
-'''
-TO DO:
-- Replace all string concatenation with function variables
-- Add error checks for empty databases to all SQL queries
-- Add function to generate SQL tables when none exist
-- Tidy up channel and role variables
-
-
-'''

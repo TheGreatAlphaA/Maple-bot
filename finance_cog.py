@@ -1,3 +1,4 @@
+
 import sys
 import json
 import datetime
@@ -32,6 +33,9 @@ except ModuleNotFoundError:
 
 
 class finance_cog(commands.Cog):
+    # ==================================================================================== #
+    #                                     DEFINITIONS                                      #
+    # ==================================================================================== #
     def __init__(self, bot):
         self.bot = bot
         
@@ -47,6 +51,10 @@ class finance_cog(commands.Cog):
         # "GME", "NVDA", "MSFT", "IBM", "TSM", "AMD", "MU", "FSLR", "IONQ"
 
         self.StockTrackerLoop.start()
+
+    # ==================================================================================== #
+    #                                      FUNCTIONS                                       #
+    # ==================================================================================== #
 
     def seconds_until(self, hours, minutes):
         given_time = datetime.time(hours, minutes)
@@ -88,17 +96,18 @@ class finance_cog(commands.Cog):
 
         return metal_info
 
+    # ==================================================================================== #
+    #                                      COMMANDS                                        #
+    # ==================================================================================== #
+
     @commands.hybrid_command(name="stock", help="gets the daily stock price for the selected stock ticker")
     @commands.is_owner()
     async def stock(self, ctx, stock_ticker=None):
-
+        message = await ctx.send("Processing...")
         try:
 
             if stock_ticker is None:
                 stock_ticker = "MSFT"
-
-            # Get the channel object from discord
-            channel = self.bot.get_channel(self.stock_channel)
 
             # Get the message contents
             stock_info = await self.StockTracker(stock_ticker)
@@ -128,23 +137,22 @@ class finance_cog(commands.Cog):
 
             msg += f" [Yahoo Finance](<https://finance.yahoo.com/quote/{stock_ticker}/>)"
 
-            # Sends the final report to the tracker channel
-            await channel.send(msg)
+            # Sends the final report
+            await message.edit(msg)
 
         except Exception as e:
-            print("Exception occured with the stock tracker: ", str(e))
+            print(f"Exception occured during command: /stock: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /stock command: {e}")
+            return
 
     @commands.hybrid_command(name="metal", help="gets the daily market price for the selected metal type")
     @commands.is_owner()
     async def metal(self, ctx, metal=None):
-
+        message = await ctx.send("Processing...")
         try:
 
             if metal is None:
                 metal = "gold"
-
-            # Get the channel object from discord
-            channel = self.bot.get_channel(self.stock_channel)
 
             # Get the message contents
             metal_info = await self.GoldSilverTracker(metal)
@@ -165,11 +173,17 @@ class finance_cog(commands.Cog):
             else:
                 msg += f":bar_chart: Daily trend is neutral (+{metal_change_price}) (+{metal_change_percent}%)"
 
-            # Sends the final report to the tracker channel
-            await channel.send(msg)
+            # Sends the final report
+            await message.edit(msg)
 
         except Exception as e:
-            print("Exception occured with the metal tracker: ", str(e))
+            print(f"Exception occured during command: /metal: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /metal command: {e}")
+            return
+
+    # ==================================================================================== #
+    #                                      MAIN LOOP                                       #
+    # ==================================================================================== #
 
     @tasks.loop(hours=23)
     async def StockTrackerLoop(self):
@@ -198,7 +212,7 @@ class finance_cog(commands.Cog):
                         msg += f":chart_with_upwards_trend: Target goal REACHED for {stock_ticker.upper()}! Current price is (+${stock_price})\n\n"
 
                 except Exception as e:
-                    print("Exception occured with the automatic stock tracker: ", str(e))
+                    print(f"Exception occured during function: StockTrackerLoop(): {e}")
 
                 try:
                     metal = "silver"
@@ -214,14 +228,14 @@ class finance_cog(commands.Cog):
                         msg += f":chart_with_upwards_trend: Target goal REACHED for {metal.title()}! Current price is (+${metal_price})\n\n"
 
                 except Exception as e:
-                    print("Exception occured with the automatic metal tracker: ", str(e))
+                    print(f"Exception occured during function: StockTrackerLoop(): {e}")
 
                 # Sends the final report to the tracker channel
                 if msg != "":
                     await channel.send(msg)
 
             except Exception as e:
-                print("Exception occured during stock tracking loop: ", str(e))
+                print(f"Exception occured during function: StockTrackerLoop(): {e}")
                 await asyncio.sleep(600)
                 continue
             break

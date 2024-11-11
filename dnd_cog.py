@@ -1,7 +1,7 @@
 
-import random
 import sys
 import math
+import random
 
 try:
     import asyncio
@@ -40,6 +40,9 @@ except ModuleNotFoundError:
 
 
 class dnd_cog(commands.Cog):
+    # ==================================================================================== #
+    #                                     DEFINITIONS                                      #
+    # ==================================================================================== #
     def __init__(self, bot):
         self.bot = bot
 
@@ -50,6 +53,10 @@ class dnd_cog(commands.Cog):
         self.db_user = self.config['DATABASE']['user']
         self.db_password = self.config['DATABASE']['password']
         self.db_database = self.config['DATABASE']['database']
+
+    # ==================================================================================== #
+    #                                      FUNCTIONS                                       #
+    # ==================================================================================== #
 
     async def discord_message_pages(self, ctx, input_list_a, input_list_b):
 
@@ -684,6 +691,10 @@ class dnd_cog(commands.Cog):
             result = creature_amount
 
         return result
+
+    # ==================================================================================== #
+    #                                    MAIN FUNCTION                                     #
+    # ==================================================================================== #
 
     async def dnd_CreatureActionCalculator(self, spell, spell_level, creature_name, creature_amount_req, creature_action, adv):
 
@@ -1718,7 +1729,9 @@ class dnd_cog(commands.Cog):
         except Exception as e:
             print(e)
 
-# ------------------------- DND COMMANDS ---------------------------
+    # ==================================================================================== #
+    #                                      COMMANDS                                        #
+    # ==================================================================================== #
 
     @commands.hybrid_command(name="roll", help="rolls a dice")
     @commands.has_role("Bot Tester")
