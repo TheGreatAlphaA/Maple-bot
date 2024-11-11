@@ -40,152 +40,48 @@ except ModuleNotFoundError:
 
 
 class skyblock_cog(commands.Cog):
-    #
-    #   Definitions
-    #
+    # ==================================================================================== #
+    #                                     DEFINITIONS                                      #
+    # ==================================================================================== #
     def __init__(self, bot):
         self.bot = bot
         
+        # Config File
         self.config = configparser.ConfigParser()
         self.config.read("info.ini")
 
+        # MySQL Database
         self.db_host = self.config['DATABASE']['host']
         self.db_user = self.config['DATABASE']['user']
         self.db_password = self.config['DATABASE']['password']
         self.db_database = self.config['DATABASE']['database']
 
-        # This is the api key that identifies the bot
+        # This is the api key for accessing the Hypixel API
         self.sb_api_key = self.config['SKYBLOCK']['hypixel_api_key']
 
+        # This is the item data for the tracked collection
+        self.sb_item_name = self.config['SKYBLOCK']['item_name']
+        self.sb_e_item_name = self.config['SKYBLOCK']['enchanted_item_name']
+
+        # This is the minion harvest tracking data
+        self.minion_output = float(self.config['SKYBLOCK']['minion_output'])
+        self.minion_storage = float(self.config['SKYBLOCK']['minion_storage_slots'])
+        self.minion_fuel_boost = int(self.config['SKYBLOCK']['minion_fuel_boost'])
+        self.minion_upgrade_slot_boost = int(self.config['SKYBLOCK']['minion_upgrade_slot_boost'])
+        self.minion_beacon_boost = int(self.config['SKYBLOCK']['minion_beacon_boost'])
+        self.minion_infusion_boost = int(self.config['SKYBLOCK']['minion_infusion_boost'])
+
+        self.number_of_minions = int(self.config['SKYBLOCK']['number_of_minions'])
+
+        # This is the channel that our notifications will be posted to.
         self.sb_channel = int(self.config['DISCORD_CHANNELS']['skyblock_tracker'])
 
-        # This is the list of player profiles
-        self.sb_players = []
-
+        # Start the loop
         self.SkyblockTrackerLoop.start()
 
-    #
-    #   Standard Functions
-    #
-
-    def sb_profiles(self):
-        # Creates an empty list
-        result = []
-
-        # Connect to the database
-        mydb = mysql.connector.connect(
-            host=self.db_host,
-            user=self.db_user,
-            password=self.db_password,
-            database=self.db_database
-        )
-
-        cursor = mydb.cursor(buffered=True)
-
-        query = """SELECT ID, MINECRAFT_USERNAME, MINECRAFT_UUID, SKYBLOCK_UUID, GHAST_TEARS FROM sb_players"""
-        cursor.execute(query)
-
-        # Checks if query is empty
-        if cursor.rowcount == 0:
-            return None
-
-        # Creates each table body
-        skyblock_players = cursor.fetchall()
-
-        for player in skyblock_players:
-            player_attr = [player[1], player[2], player[3], player[4]]
-            result.append(player_attr)
-
-        self.sb_players = result
-
-    async def sb_harvest(self, username, ghast_tears):
-
-        # Connect to the database
-        mydb = mysql.connector.connect(
-            host=self.db_host,
-            user=self.db_user,
-            password=self.db_password,
-            database=self.db_database
-        )
-
-        cursor = mydb.cursor(buffered=True)
-
-        # Get the old values for ghast tears, and how many days have passed.
-        query = """SELECT GHAST_TEARS FROM sb_players WHERE MINECRAFT_USERNAME = %(username)s"""
-        cursor.execute(query, {'username': username})
-
-        # Checks if query is empty
-        if cursor.rowcount == 0:
-            print("Error! Unexpected value in sb_harvest function!")
-            return None
-
-        # Organizes the data
-        yesterdays_harvest = cursor.fetchall()
-
-        yesterdays_ghast_tears = yesterdays_harvest[0][0]
-
-        # If today's ghast tears are higher than yesterday's, update the ghast tear collection and days since last harvest
-        if ghast_tears > yesterdays_ghast_tears:
-
-            # Update the player's current ghast tear collection
-            query = """UPDATE sb_players SET GHAST_TEARS = %(ghast_tears)s WHERE MINECRAFT_USERNAME = %(username)s"""
-            cursor.execute(query, {'username': username, 'ghast_tears': ghast_tears})
-
-            # Reset the days since last harvest
-            days_since_last_harvest = 0
-
-            query = """UPDATE sb_players SET DAYS_SINCE = %(days_since_last_harvest)s WHERE MINECRAFT_USERNAME = %(username)s"""
-            cursor.execute(query, {'username': username, 'days_since_last_harvest': days_since_last_harvest})
-
-            # Commit changes to database
-            mydb.commit()
-
-        elif ghast_tears < yesterdays_ghast_tears:
-            print("Error! Unexpected value in sb_harvest function!")
-
-    async def sb_increment_days_since(self):
-
-        # Connect to the database
-        mydb = mysql.connector.connect(
-            host=self.db_host,
-            user=self.db_user,
-            password=self.db_password,
-            database=self.db_database
-        )
-
-        cursor = mydb.cursor(buffered=True)
-
-        query = """UPDATE sb_players SET DAYS_SINCE = DAYS_SINCE + 1"""
-        cursor.execute(query)
-
-        # Commit changes to database
-        mydb.commit()
-
-    async def sb_get_days_since(self, username):
-
-        # Connect to the database
-        mydb = mysql.connector.connect(
-            host=self.db_host,
-            user=self.db_user,
-            password=self.db_password,
-            database=self.db_database
-        )
-
-        cursor = mydb.cursor(buffered=True)
-
-        # Get the old values for ghast tears, and how many days have passed.
-        query = """SELECT DAYS_SINCE FROM sb_players WHERE MINECRAFT_USERNAME = %(username)s"""
-        cursor.execute(query, {'username': username})
-
-        # Checks if query is empty
-        if cursor.rowcount == 0:
-            print("Error! Unexpected value in sb_get_days_since function!")
-            return None
-
-        # Organizes the data
-        data = cursor.fetchall()
-
-        return data[0][0]
+    # ==================================================================================== #
+    #                                      FUNCTIONS                                       #
+    # ==================================================================================== #
 
     def seconds_until(self, hours, minutes):
         given_time = datetime.time(hours, minutes)
@@ -196,46 +92,6 @@ class skyblock_cog(commands.Cog):
 
         return (future_exec - now).total_seconds()
 
-    def read_from_txt(self, path):
-        # Initialize variables
-        raw_lines = []
-        lines = []
-
-        # Load data from the txt file
-        try:
-            f = open(path, "r")
-            raw_lines = f.readlines()
-            f.close()
-
-        except FileNotFoundError:
-            print("Error! No txt file found!")
-            return None
-
-        # Parse the data
-        for line in raw_lines:
-            lines.append(line.strip("\n"))
-
-        # Returns the data
-        return lines
-
-    def write_to_txt(self, path, txt):
-        # Opens the txt file, and writes data to it
-        try:
-            f = open(path, "w")
-            f.write(txt)
-            f.close()
-
-        except FileNotFoundError:
-            print("Error! No txt file found!")
-            return None
-
-    def convert_to_int(self, array):
-        try:
-            new_array = [int(element) for element in array]
-            return new_array
-        except ValueError:
-            print("Error! Expected ints, but got chars in convert_to_int")
-
     def human_format(self, num):
         num = float('{:.3g}'.format(num))
         magnitude = 0
@@ -244,122 +100,325 @@ class skyblock_cog(commands.Cog):
             num /= 1000.0
         return '{}{}'.format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'K', 'M', 'B', 'T'][magnitude])
 
-    #
-    #   Async Functions
-    #
+    def SkyblockGetPlayerDatabaseData(self):
+        # Creates an empty list
+        players_data = []
 
-    async def SkyblockGhastTearCollection(self, player, profile):
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        query = """SELECT MINECRAFT_USERNAME, MINECRAFT_UUID, SKYBLOCK_UUID, COLLECTION FROM sb_players"""
+        cursor.execute(query)
+
+        # Checks if query is empty
+        if cursor.rowcount == 0:
+            return None
+
+        # Creates each table body
+        player_data = cursor.fetchall()
+
+        for i in range(len(player_data)):
+            # Assign friendly names to the data
+            minecraft_username = player_data[i][0]
+            minecraft_uuid = player_data[i][1]
+            skyblock_uuid = player_data[i][2]
+            collection = player_data[i][3]
+
+            player_dict = {
+                "minecraft_username": minecraft_username,
+                "minecraft_uuid": minecraft_uuid,
+                "skyblock_uuid": skyblock_uuid,
+                "collection": collection
+
+            }
+
+            players_data.append(player_dict)
+
+        return players_data
+
+    def SkyblockUpdatePlayerDatabaseData(self, username, collection_total):
+
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        # Get the old values for total collection.
+        query = """SELECT COLLECTION FROM sb_players WHERE MINECRAFT_USERNAME = %(username)s"""
+        cursor.execute(query, {'username': username})
+
+        # Checks if query is empty
+        if cursor.rowcount == 0:
+            print("Error! Unexpected value in SkyblockUpdatePlayerDatabaseData function!")
+            return None
+
+        # Organizes the data
+        yesterdays_harvest = cursor.fetchall()
+
+        yesterdays_collection_total = yesterdays_harvest[0][0]
+
+        # If today's total collection is higher than yesterday's, update the total collection and days since last harvest
+        if collection_total > yesterdays_collection_total:
+
+            # Update the player's current total collection
+            query = """UPDATE sb_players SET COLLECTION = %(collection_total)s WHERE MINECRAFT_USERNAME = %(username)s"""
+            cursor.execute(query, {'username': username, 'collection_total': collection_total})
+
+            # Reset the days since last harvest
+            days_since_last_harvest = 0
+
+            query = """UPDATE sb_players SET DAYS_SINCE = %(days_since_last_harvest)s WHERE MINECRAFT_USERNAME = %(username)s"""
+            cursor.execute(query, {'username': username, 'days_since_last_harvest': days_since_last_harvest})
+
+            # Commit changes to database
+            mydb.commit()
+
+        elif collection_total < yesterdays_collection_total:
+            print("Error! Unexpected value in SkyblockUpdatePlayerDatabaseData function!")
+
+    def SkyblockGetItemCollection(self, player, profile):
         url = f"https://api.hypixel.net/v2/skyblock/profile?key={self.sb_api_key}&profile={profile}"
         resp = urllib.request.urlopen(url)
         data = json.load(resp)
-        ghast_collection = data["profile"]["members"][player]["collection"]["GHAST_TEAR"]
-        return ghast_collection
 
-    async def SkyblockMayorChecker(self):
-        url = f"https://api.hypixel.net/v2/resources/skyblock/election?key={self.sb_api_key}"
-        resp = urllib.request.urlopen(url)
-        data = json.load(resp)
+        # Get the item collection data for the requested player.
+        collection = data["profile"]["members"][player]["collection"][self.sb_item_name]
 
-        mayor = []
+        return collection
 
-        # Append the currently elected mayor
-        mayor.append(data["mayor"]["name"])
-
-        # Append the mayors up for election
-        try:
-            for i in range(5):
-                mayor.append(data["current"]["candidates"][i]["name"])
-        except KeyError:
-            # Mayor election are not open yet!
-            pass
-
-        return mayor
-
-    async def SkyblockGeneralProfitabilityChecker(self, mayor, bazaar_data):
-        ghast_instant_sell = bazaar_data["products"]["ENCHANTED_GHAST_TEAR"]["quick_status"]["sellPrice"]
-
-        # Calculated using T12 Ghast Minions + Plasma Bucket + 1 Flycatcher + Mithril Infusion
-        # 475.2 Enchanted Ghast Tears per minion
-        # 0.99 is for bazaar 1% tax for sellers
-        if mayor == "Derpy":
-            # Doubled output when Derpy is mayor
-            daily_gross = 475.2 * 30 * ghast_instant_sell * 2 * 0.99
-        else:
-            daily_gross = 475.2 * 30 * ghast_instant_sell * 0.99
-        daily_expense = 0
-        daily_net = daily_gross - daily_expense
-        
-        return int(daily_net)
-
-    async def SkyblockHyperCatalystProfitabilityChecker(self, mayor, bazaar_data):
-        ghast_instant_sell = bazaar_data["products"]["ENCHANTED_GHAST_TEAR"]["quick_status"]["sellPrice"]
-        hypercatalyst_buy_order = bazaar_data["products"]["HYPER_CATALYST"]["quick_status"]["sellPrice"]
-        starfall_buy_order = bazaar_data["products"]["STARFALL"]["quick_status"]["sellPrice"]
-
-        # Calculated using T12 Ghast Minions + 1 Flycatcher + Mithril Infusion + T5 Beacon Boost
-        # 1612.8 Enchanted Ghast Tears per minion
-        # 4 Hyper Catalysts per minion
-        # 0.99 is for bazaar 1% tax for sellers
-        if mayor == "Derpy":
-            # Doubled output when Derpy is mayor
-            daily_gross = 1612.8 * 30 * ghast_instant_sell * 2 * 0.99
-        else:
-            daily_gross = 1612.8 * 30 * ghast_instant_sell * 0.99
-
-        daily_expense = (4 * 30 * hypercatalyst_buy_order) + (128 * starfall_buy_order)
-        # Net profit for hypercatalysts needs to exceed baseline profit, otherwise, we would still make more money without them
-        baseline = await self.SkyblockGeneralProfitabilityChecker(mayor, bazaar_data)
-        daily_net = daily_gross - daily_expense - baseline
-        
-        return int(daily_net)
-
-    async def SkyblockTracker(self):
-        # Update the skyblock profiles
-        self.sb_profiles()
-
-        # Estimated burden of this function is 5 API calls
+    def SkyblockGetBazaarData(self):
         url = f"https://api.hypixel.net/v2/skyblock/bazaar?key={self.sb_api_key}"
         resp = urllib.request.urlopen(url)
         bazaar_data = json.load(resp)
 
-        # Checks which mayors are elected or up for election
-        mayors = await self.SkyblockMayorChecker()
+        return bazaar_data
+
+    def SkyblockGetMayorData(self):
+        url = f"https://api.hypixel.net/v2/resources/skyblock/election?key={self.sb_api_key}"
+        resp = urllib.request.urlopen(url)
+        data = json.load(resp)
+
+        mayor_data = []
+
+        # Append the currently elected mayor
+        mayor_data.append(data["mayor"]["name"])
+
+        # Append the mayors up for election
+        try:
+            for i in range(5):
+                mayor_data.append(data["current"]["candidates"][i]["name"])
+        except KeyError:
+            # Mayor election are not open yet!
+            pass
+
+        return mayor_data
+
+    def SkyblockGeneralProfitabilityChecker(self, mayor, bazaar_data):
+        instant_sell_price = bazaar_data["products"][self.sb_e_item_name]["quick_status"]["sellPrice"]
+        hypercatalyst_buy_order = bazaar_data["products"]["HYPER_CATALYST"]["quick_status"]["buyPrice"]
+        catalyst_buy_order = bazaar_data["products"]["CATALYST"]["quick_status"]["buyPrice"]
+        tasty_cheese_buy_order = bazaar_data["products"]["CHEESE_FUEL"]["quick_status"]["buyPrice"]
+        foul_flesh_buy_order = bazaar_data["products"]["FOUL_FLESH"]["quick_status"]["buyPrice"]
+        hamster_wheel_buy_order = bazaar_data["products"]["HAMSTER_WHEEL"]["quick_status"]["buyPrice"]
+        scorched_power_crystal_buy_order = bazaar_data["products"]["SCORCHED_POWER_CRYSTAL"]["quick_status"]["buyPrice"]
+        power_crystal_buy_order = bazaar_data["products"]["POWER_CRYSTAL"]["quick_status"]["buyPrice"]
+
+        if self.minion_fuel_boost > 100:
+            boost = (self.minion_fuel_boost / 100) * ((100 + self.minion_upgrade_slot_boost + self.minion_beacon_boost + self.minion_infusion_boost) / 100)
+        else:
+            boost = (self.minion_fuel_boost + 100 + self.minion_upgrade_slot_boost + self.minion_beacon_boost + self.minion_infusion_boost) / 100
+
+        if mayor == "Derpy":
+            # Doubled output when Derpy is mayor
+            daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 2 * 0.99
+        else:
+            daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 0.99
+
+        if self.minion_beacon_boost == 6:
+            if self.minion_fuel_boost == 400:
+                daily_expense = (4 * self.number_of_minions * hypercatalyst_buy_order) + (scorched_power_crystal_buy_order / 2)
+            elif self.minion_fuel_boost == 300:
+                daily_expense = (8 * self.number_of_minions * catalyst_buy_order) + (scorched_power_crystal_buy_order / 2)
+            elif self.minion_fuel_boost == 200:
+                daily_expense = (24 * self.number_of_minions * tasty_cheese_buy_order) + (scorched_power_crystal_buy_order / 2)
+            elif self.minion_fuel_boost == 90:
+                daily_expense = (5 * self.number_of_minions * foul_flesh_buy_order) + (scorched_power_crystal_buy_order / 2)
+            elif self.minion_fuel_boost == 50:
+                daily_expense = (1 * self.number_of_minions * hamster_wheel_buy_order) + (scorched_power_crystal_buy_order / 2)
+            else:
+                daily_expense = scorched_power_crystal_buy_order / 2
+        elif self.minion_beacon_boost > 0:
+            if self.minion_fuel_boost == 400:
+                daily_expense = (4 * self.number_of_minions * hypercatalyst_buy_order) + (power_crystal_buy_order / 2)
+            elif self.minion_fuel_boost == 300:
+                daily_expense = (8 * self.number_of_minions * catalyst_buy_order) + (power_crystal_buy_order / 2)
+            elif self.minion_fuel_boost == 200:
+                daily_expense = (24 * self.number_of_minions * tasty_cheese_buy_order) + (power_crystal_buy_order / 2)
+            elif self.minion_fuel_boost == 90:
+                daily_expense = (5 * self.number_of_minions * foul_flesh_buy_order) + (power_crystal_buy_order / 2)
+            elif self.minion_fuel_boost == 50:
+                daily_expense = (1 * self.number_of_minions * hamster_wheel_buy_order) + (power_crystal_buy_order / 2)
+            else:
+                daily_expense = power_crystal_buy_order / 2
+        else:
+            if self.minion_fuel_boost == 400:
+                daily_expense = 4 * self.number_of_minions * hypercatalyst_buy_order
+            elif self.minion_fuel_boost == 300:
+                daily_expense = 8 * self.number_of_minions * catalyst_buy_order
+            elif self.minion_fuel_boost == 200:
+                daily_expense = 24 * self.number_of_minions * tasty_cheese_buy_order
+            elif self.minion_fuel_boost == 90:
+                daily_expense = 5 * self.number_of_minions * foul_flesh_buy_order
+            elif self.minion_fuel_boost == 50:
+                daily_expense = 1 * self.number_of_minions * hamster_wheel_buy_order
+            else:
+                daily_expense = 0
+
+        daily_net = daily_gross - daily_expense
+        
+        return int(daily_net)
+
+    def SkyblockBaselineProfitabilityChecker(self, mayor, bazaar_data):
+        instant_sell_price = bazaar_data["products"][self.sb_e_item_name]["quick_status"]["sellPrice"]
+        scorched_power_crystal_buy_order = bazaar_data["products"]["SCORCHED_POWER_CRYSTAL"]["quick_status"]["buyPrice"]
+        power_crystal_buy_order = bazaar_data["products"]["POWER_CRYSTAL"]["quick_status"]["buyPrice"]
+
+        minion_fuel_boost = 35
+
+        boost = (minion_fuel_boost + 100 + self.minion_upgrade_slot_boost + self.minion_beacon_boost + self.minion_infusion_boost) / 100
+
+        if mayor == "Derpy":
+            # Doubled output when Derpy is mayor
+            daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 2 * 0.99
+        else:
+            daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 0.99
+
+        if self.minion_beacon_boost == 6:
+            daily_expense = scorched_power_crystal_buy_order / 2
+        elif self.minion_beacon_boost > 0:
+            daily_expense = power_crystal_buy_order / 2
+        else:
+            daily_expense = 0
+
+        daily_net = daily_gross - daily_expense
+        
+        return int(daily_net)
+
+    def SkyblockHyperCatalystProfitabilityChecker(self, mayor, bazaar_data):
+        instant_sell_price = bazaar_data["products"][self.sb_e_item_name]["quick_status"]["sellPrice"]
+        hypercatalyst_buy_order = bazaar_data["products"]["HYPER_CATALYST"]["quick_status"]["buyPrice"]
+        scorched_power_crystal_buy_order = bazaar_data["products"]["SCORCHED_POWER_CRYSTAL"]["quick_status"]["buyPrice"]
+        power_crystal_buy_order = bazaar_data["products"]["POWER_CRYSTAL"]["quick_status"]["buyPrice"]
+
+        minion_fuel_boost = 400
+
+        boost = (minion_fuel_boost / 100) * ((100 + self.minion_upgrade_slot_boost + self.minion_beacon_boost + self.minion_infusion_boost) / 100)
+
+        if mayor == "Derpy":
+            # Doubled output when Derpy is mayor
+            daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 2 * 0.99
+        else:
+            daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 0.99
+
+        if self.minion_beacon_boost == 6:
+            daily_expense = (4 * self.number_of_minions * hypercatalyst_buy_order) + (scorched_power_crystal_buy_order / 2)
+        elif self.minion_beacon_boost > 0:
+            daily_expense = (4 * self.number_of_minions * hypercatalyst_buy_order) + (power_crystal_buy_order / 2)
+        else:
+            daily_expense = 4 * self.number_of_minions * hypercatalyst_buy_order
+
+        # Net profit for hypercatalysts needs to exceed baseline profit, otherwise, we would still make more money without them
+        baseline = self.SkyblockBaselineProfitabilityChecker(mayor, bazaar_data)
+        daily_net = daily_gross - daily_expense - baseline
+        
+        return int(daily_net)
+
+    # ==================================================================================== #
+    #                                    MAIN FUNCTION                                     #
+    # ==================================================================================== #
+
+    def SkyblockTracker(self):
+        # Get the player data from the database
+        players_data = self.SkyblockGetPlayerDatabaseData()
+
+        # Request API Data
+        bazaar_data = self.SkyblockGetBazaarData()
+        mayor_data = self.SkyblockGetMayorData()
+
         # Assigns the currently elected mayor
-        mayor = mayors[0]
+        elected_mayor = mayor_data[0]
+
         # Calculates the estimates profit for today.
-        profit_hyper = await self.SkyblockHyperCatalystProfitabilityChecker(mayor, bazaar_data)
-        profit_gen = await self.SkyblockGeneralProfitabilityChecker(mayor, bazaar_data)
+        daily_profit_gen = self.SkyblockGeneralProfitabilityChecker(elected_mayor, bazaar_data)
+        daily_profit_hyper = self.SkyblockHyperCatalystProfitabilityChecker(elected_mayor, bazaar_data)
 
-        ranking = [[] for i in range(len(self.sb_players))]
+        # List of players to be ranked
+        players = []
 
-        # Compiles the ghast tear collection data for all 3 players being tracked
-        for i in range(len(self.sb_players)):
-            ranking[i].append(await self.SkyblockGhastTearCollection(self.sb_players[i][1], self.sb_players[i][2]))
-            ranking[i].append(self.sb_players[i][0])
-            ranking[i].append(self.sb_players[i][3])
-        ranking.sort(reverse=True)
+        # Compiles the collection data for all players being tracked
+        for i in range(len(players_data)):
+            # Assign friendly names to the data
+            minecraft_username = players_data[i]["minecraft_username"]
+            minecraft_uuid = players_data[i]["minecraft_uuid"]
+            skyblock_uuid = players_data[i]["skyblock_uuid"]
+            yesterdays_collection = players_data[i]["collection"]
+
+            # Request API Data
+            collection = self.SkyblockGetItemCollection(minecraft_uuid, skyblock_uuid)
+
+            player_dict = {
+                "minecraft_username": minecraft_username,
+                "collection": collection,
+                "yesterdays_collection": yesterdays_collection
+            }
+
+            players.append(player_dict)
+
+        # Sort the list of players by their collection
+        player_ranking = sorted(players, key=lambda d: d['collection'], reverse=True)
+
         # This string contains the message that will be sent at the end.
         sb_tracker_msg = ""
 
-        # Lists the ranked ghast collection leaderboard.
-        for i in range(len(self.sb_players)):
-            # Lists the ghast collections
-            sb_tracker_msg += f"{ranking[i][1]} has a ghast collection of {ranking[i][0]}"
-            sb_delta = ranking[i][0] - ranking[i][2]
+        # Lists the ranked collection leaderboard.
+        for j in range(len(player_ranking)):
+            # Assign friendly names to the data
+            minecraft_username = player_ranking[j]['minecraft_username']
+            collection = player_ranking[j]['collection']
+            yesterdays_collection = player_ranking[j]['yesterdays_collection']
+            sb_delta = collection - yesterdays_collection
+
+            collection_name_pretty = self.sb_item_name.lower().replace("_", " ")
+
+            # Lists the collections
+            sb_tracker_msg += f"{minecraft_username} has a {collection_name_pretty} collection total of {collection}"
             sb_tracker_msg += f" (+{sb_delta})\n"
 
-            await self.sb_harvest(ranking[i][1], ranking[i][0])
+            # Update the SQL Database
+            self.SkyblockUpdatePlayerDatabaseData(minecraft_username, collection)
 
         # Check if a special mayor has been elected
-        if mayor not in {"Aatrox", "Cole", "Diana", "Diaz", "Finnegan", "Foxy", "Marina", "Paul"}:
-            sb_tracker_msg += f"\n:person_in_tuxedo: Special Mayor {mayor} is in office today.\n"
+        if elected_mayor not in {"Aatrox", "Cole", "Diana", "Diaz", "Finnegan", "Foxy", "Marina", "Paul"}:
+            sb_tracker_msg += f"\n:person_in_tuxedo: Special Mayor {elected_mayor} is in office today.\n"
 
         # Check if a special mayor is up for election
         try:
             # Assigns all the mayoral candidates
             candidates = []
             for i in [1, 2, 3, 4, 5]:
-                candidates.append(mayors[i])
+                candidates.append(mayor_data[i])
             for candidate in candidates:
                 if candidate not in {"Aatrox", "Cole", "Diana", "Diaz", "Finnegan", "Foxy", "Marina", "Paul"}:
                     sb_tracker_msg += f"\n:person_in_tuxedo: Special Mayor {candidate} is up for election.\n"
@@ -367,48 +426,83 @@ class skyblock_cog(commands.Cog):
             # No candidates avaliable
             pass
 
+        # Track the first account in the database when updating the minion harvest tracker
+        minion_owner = players_data[0]["minecraft_username"]
+
+        # Estimate the time until the next harvest
+        days_between = int(((self.minion_storage * 64) - 128) / self.minion_output)
+
         # Check the days since the last harvest
-        days_since = await self.sb_get_days_since("Alpha_A")
+        try:
+            # Connect to the database
+            mydb = mysql.connector.connect(
+                host=self.db_host,
+                user=self.db_user,
+                password=self.db_password,
+                database=self.db_database
+            )
+
+            cursor = mydb.cursor(buffered=True)
+
+            # Get how many days have passed since the last harvest.
+            query = """SELECT DAYS_SINCE FROM sb_players WHERE MINECRAFT_USERNAME = %(username)s"""
+            cursor.execute(query, {'username': minion_owner})
+
+            # Organizes the data
+            data = cursor.fetchall()
+
+            days_since = data[0][0]
+        except IndexError:
+            days_since = None
 
         if days_since == 0:
             sb_tracker_msg += "\n:corn: Minions have been harvested recently (< 1 day).\n"
+        elif days_since == 1 and days_between == 1:
+            sb_tracker_msg += f"\n:sunflower: Items are ready to be collected! ({days_since} day).\n"
         elif days_since == 1:
-            sb_tracker_msg += "\n:seedling: Minions are busy harvesting ghast tears. (1 day).\n"
-        elif days_since < 5:
-            sb_tracker_msg += f"\n:seedling: Minions are busy harvesting ghast tears. ({days_since} days).\n"
-        elif days_since >= 5:
-            sb_tracker_msg += f"\n:sunflower: Ghast tears are ready to be harvested! ({days_since} days).\n"
+            sb_tracker_msg += "\n:seedling: Minions are busy harvesting items. (1 day).\n"
+        elif days_since < days_between:
+            sb_tracker_msg += f"\n:seedling: Minions are busy harvesting items. ({days_since} days).\n"
+        elif days_since >= days_between:
+            sb_tracker_msg += f"\n:sunflower: Items are ready to be collected! ({days_since} days).\n"
 
-        # Total profit before adding hypercatalysts
-        sb_tracker_msg += f"\n:bar_chart: We made {self.human_format(profit_gen)} coins.\n"
+        # Total profit based on the provided parameters
+        sb_tracker_msg += f"\n:bar_chart: We made {self.human_format(daily_profit_gen)} coins.\n"
 
         # Check if the estimated profit for using hypercatalysts today was positive
-        if profit_hyper > 0:
-            sb_tracker_msg += f"\n:chart_with_upwards_trend: Today is PROFITABLE for Hyper Catalysts (+{self.human_format(profit_hyper)} coins)"
+        if daily_profit_hyper > 0:
+            sb_tracker_msg += f"\n:chart_with_upwards_trend: Today is PROFITABLE for Hyper Catalysts (+{self.human_format(daily_profit_hyper)} coins)"
         else:
-            sb_tracker_msg += f"\n:chart_with_downwards_trend: Today is not profitable for Hyper Catalysts... ({self.human_format(profit_hyper)} coins)"
+            sb_tracker_msg += f"\n:chart_with_downwards_trend: Today is not profitable for Hyper Catalysts... ({self.human_format(daily_profit_hyper)} coins)"
 
         return sb_tracker_msg
 
-    #
-    #   Commands
-    #
+    # ==================================================================================== #
+    #                                      COMMANDS                                        #
+    # ==================================================================================== #
 
     @commands.hybrid_group(name="skyblock", invoke_without_command=True)
     async def skyblock(self, ctx):
-        msg = f"""
+        try:
+            msg = f"""
 ```
 Sure thing boss. Please specify a subcommand to use this feature.
 Here is the subcommand list for the 'skyblock' command:
-{self.bot.command_prefix}skyblock tracker - Manages the skyblock ghast minion leaderboard tracker.
+{self.bot.command_prefix}skyblock tracker - Manages the skyblock collection leaderboard tracker.
 ```
 """
-        await ctx.send(msg)
+            await ctx.send(msg)
 
-    @skyblock.group(name="tracker", help="manages the skyblock ghast minion leaderboard tracker.", invoke_without_command=True)
+        except Exception as e:
+            print(f"Exception occured during command: /skyblock: {e}")
+            await ctx.send(f"Oops! I couldn't run the /skyblock command: {e}")
+            return
+
+    @skyblock.group(name="tracker", help="manages the skyblock collection leaderboard tracker.", invoke_without_command=True)
     @commands.has_role("Bot Tester")
     async def tracker(self, ctx):
-        msg = f"""
+        try:
+            msg = f"""
 ```
 Sure thing boss. Please specify a subcommand to use this feature.
 Here is the subcommand list for the 'tracker' command:
@@ -416,40 +510,52 @@ Here is the subcommand list for the 'tracker' command:
 {self.bot.command_prefix}skyblock tracker test - sends a test message from the skyblock tracker
 ```
 """
-        await ctx.send(msg)
+            await ctx.send(msg)
 
-    @tracker.command(name="status", help="checks to see if the skyblock ghast tear leaderboard checker is running or not")
+        except Exception as e:
+            print(f"Exception occured during command: /skyblock tracker: {e}")
+            await ctx.send(f"Oops! I couldn't run the /skyblock tracker command: {e}")
+            return
+
+    @tracker.command(name="status", help="checks to see if the skyblock collection leaderboard checker is running or not")
     @commands.has_role("Bot Tester")
     async def status(self, ctx):
+        message = await ctx.send("Processing...")
         try:
             if self.SkyblockTrackerLoop.is_running() is True:
-                await ctx.send("The Skyblock Tracker is currently running.")
+                await message.edit(content="The Skyblock Tracker is currently running.")
             else:
-                await ctx.send("The Skyblock Tracker is currently offline.")
+                await message.edit(content="The Skyblock Tracker is currently offline.")
+
         except Exception as e:
-            await ctx.send(f"Oh no! I'm not able to check the status of the skyblock tracker right now...\nHere is the error: {e}")
+            print(f"Exception occured during command: /skyblock tracker status: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /skyblock tracker status command: {e}")
             return
 
     @tracker.command(name="test", help="sends a test message to the skyblock tracker channel")
     @commands.has_role("Bot Tester")
     async def test(self, ctx):
-
+        message = await ctx.send("Processing...")
         try:
-
             # Get the channel object from discord
             channel = self.bot.get_channel(self.sb_channel)
 
             # Get the message contents
-            msg = await self.SkyblockTracker()
+            msg = self.SkyblockTracker()
 
             # Sends the final report to the tracker channel
             await channel.send(msg)
 
+            await message.edit(content="Sent a test message to the tracker channel!")
+
         except Exception as e:
-            await ctx.send(f"Oh no! I'm not able to use the skyblock tracker tester right now...\nHere is the error: {e}")
+            print(f"Exception occured during command: /skyblock tracker test: {e}")
+            await message.edit(content=f"Oops! I couldn't run the /skyblock tracker test command: {e}")
             return
 
-        await ctx.send("Sent a test message to the tracker channel!")
+    # ==================================================================================== #
+    #                                      MAIN LOOP                                       #
+    # ==================================================================================== #
 
     @tasks.loop(hours=23)
     async def SkyblockTrackerLoop(self):
@@ -458,11 +564,25 @@ Here is the subcommand list for the 'tracker' command:
         attempts = 0
 
         try:
+            # Connect to the database
+            mydb = mysql.connector.connect(
+                host=self.db_host,
+                user=self.db_user,
+                password=self.db_password,
+                database=self.db_database
+            )
+
+            cursor = mydb.cursor(buffered=True)
+
             # Increment the days since last harvest by 1.
-            await self.sb_increment_days_since()
+            query = """UPDATE sb_players SET DAYS_SINCE = DAYS_SINCE + 1"""
+            cursor.execute(query)
+
+            # Commit changes to database
+            mydb.commit()
 
         except Exception as e:
-            print("Exception occured during skyblock loop: ", str(e))
+            print(f"Exception occured during function: SkyblockTrackerLoop(): {e}")
 
         # Loop until successfully run.
         while True:
@@ -472,13 +592,13 @@ Here is the subcommand list for the 'tracker' command:
                 channel = self.bot.get_channel(self.sb_channel)
 
                 # Get the message contents
-                msg = await self.SkyblockTracker()
+                msg = self.SkyblockTracker()
 
                 # Sends the final report to the tracker channel
                 await channel.send(msg)
 
             except Exception as e:
-                print("Exception occured during skyblock loop: ", str(e))
+                print(f"Exception occured during function: SkyblockTrackerLoop(): {e}")
                 await asyncio.sleep(20)
 
                 # Quit if more than 30 attempts fail
@@ -491,3 +611,7 @@ Here is the subcommand list for the 'tracker' command:
             break
 
         await asyncio.sleep(60)
+
+    @SkyblockTrackerLoop.before_loop
+    async def before_SkyblockTrackerLoop(self):
+        await self.bot.wait_until_ready()
