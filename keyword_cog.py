@@ -2,6 +2,13 @@
 import sys
 
 try:
+    import mysql.connector
+except ModuleNotFoundError:
+    print("Please install mysql-connector. (pip install mysql-connector-python)")
+    e = input("Press enter to close")
+    sys.exit("Process finished with exit code: ModuleNotFoundError")
+
+try:
     import configparser
 except ModuleNotFoundError:
     print("Please install configparser. (pip install configparser)")
@@ -26,6 +33,11 @@ class keyword_cog(commands.Cog):
         
         self.config = configparser.ConfigParser()
         self.config.read("info.ini")
+
+        self.db_host = self.config['DATABASE']['host']
+        self.db_user = self.config['DATABASE']['user']
+        self.db_password = self.config['DATABASE']['password']
+        self.db_database = self.config['DATABASE']['database']
         
         self.deals_channel = int(self.config['DISCORD_CHANNELS']['deals'])
         self.tracker_channel = int(self.config['DISCORD_CHANNELS']['deal_tracker'])
@@ -36,144 +48,165 @@ class keyword_cog(commands.Cog):
     #                                      FUNCTIONS                                       #
     # ==================================================================================== #
 
-    def read_from_txt(self, path):
-        # Initialize variables
-        raw_lines = []
-        lines = []
+    def Keyword_GetOne(self, keyword, negative):
 
-        # Load data from the txt file
-        try:
-            f = open(path, "r")
-            raw_lines = f.readlines()
-            f.close()
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
 
-        except FileNotFoundError:
-            print("Error! No txt file found!")
-            return None
+        cursor = mydb.cursor(buffered=True)
 
-        # Parse the data
-        for line in raw_lines:
-            lines.append(line.strip("\n"))
+        # Get the old values for total collection.
+        query = """SELECT KEYWORD FROM keywords WHERE KEYWORD = %(keyword)s AND NEGATIVE = %(negative)s"""
+        cursor.execute(query, {'keyword': keyword, 'negative': negative})
 
-        # Returns the data
-        return lines
-
-    def write_to_txt(self, path, txt):
-        # Opens the txt file, and appends data to it
-        try:
-            f = open(path, "a")
-            f.write("\n")
-            f.write(txt.lower())
-            f.close()
-
-        except FileNotFoundError:
-            print("Error! No txt file found!")
-            return None
-
-    def remove_from_txt(self, path, txt):
-        # Initialize variables
-        raw_lines = []
-        lines = []
-
-        # Load data from the txt file
-        try:
-            f = open(path, "r")
-            raw_lines = f.readlines()
-            f.close()
-
-        except FileNotFoundError:
-            print("Error! No txt file found!")
-            return None
-
-        # Parse the data
-        for line in raw_lines:
-            if line.lower().rstrip() != txt.lower():
-                lines.append(line.lower().rstrip())
-
-        # Checks if the data has been emptied 
-        if lines:
-            output_lines = "\n".join(lines)
+        # Checks if query is empty
+        if cursor.rowcount == 0:
+            return False
         else:
-            output_lines = ""
+            return True
 
-        # Overwrites the data with the new information
-        try:
-            f = open(path, "w")
-            f.write(output_lines)
-            f.close
-        except FileNotFoundError:
-            print("Error! No txt file found!")
+    def Keyword_GetAll(self, negative):
+
+        keywords = []
+
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        # Get the old values for total collection.
+        query = """SELECT KEYWORD FROM keywords WHERE NEGATIVE = %(negative)s"""
+        cursor.execute(query, {'negative': negative})
+
+        # Checks if query is empty
+        if cursor.rowcount == 0:
             return None
 
-    def keyword_partition(self, text, delim):
-        if isinstance(text, str) is True:
-            return text.partition(delim)[0]
+        # Organizes the data
+        data = cursor.fetchall()
+
+        for row in data:
+            keywords.append(row[0])
+
+        return keywords
+
+    def Keyword_Create(self, keyword, negative):
+
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        query = """INSERT INTO keywords (KEYWORD, NEGATIVE) VALUES (%(keyword)s, %(negative)s)"""
+        cursor.execute(query, {'keyword': keyword, 'negative': negative})
+
+        # Commit changes to database
+        mydb.commit()
+
+    def Keyword_Delete(self, keyword, negative):
+
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        query = """DELETE FROM keywords WHERE KEYWORD = %(keyword)s AND NEGATIVE = %(negative)s"""
+        cursor.execute(query, {'keyword': keyword, 'negative': negative})
+
+        # Commit changes to database
+        mydb.commit()
+
+    def Keyword_CleanText(self, ctx):
+
+        text = []
+        clean_text = ""
+
+        # If the message is a simple discord message
+        if hasattr(ctx, "content"):
+
+            text.append(ctx.content)
+
+        # If the message is an embeded message
+        if hasattr(ctx, "embeds"):
+            if ctx.embeds[0].title:
+                text.append(ctx.embeds[0].title)
+            if ctx.embeds[0].description:
+                text.append(ctx.embeds[0].description)
+
+        # Take all matching messages and merge into a single string
+        for i in range(len(text)):
+            if i == 0:
+                clean_text = f"{text[i].lower()}"
+            else:
+                clean_text += f" {text[i].lower()}"
+
+        return clean_text
 
     # ==================================================================================== #
     #                                    MAIN FUNCTION                                     #
     # ==================================================================================== #
 
-    def keyword_check(self, text):
-        keywords = self.read_from_txt("keyword_check/keywords.txt")
-        negatives = self.read_from_txt("keyword_check/negatives.txt")
-        delim = "@Deal Notifications"
+    def Keyword_CheckIfKeywordExistsInString(self, text):
+        keywords_data = self.Keyword_GetAll(False)
+        n_keywords_data = self.Keyword_GetAll(True)
 
-        if keywords:
-            for keyword_set in keywords:
-                good = False
-                matches = 0
-                total = len(keyword_set.split("+"))
-                for keyword in keyword_set.split("+"):
-                    if isinstance(text, str) is True:
-                        text_part = self.keyword_partition(text, delim)
-                        if (keyword.lower() in text_part.lower()):
-                            matches += 1
-                    elif hasattr(text, "content"):
-                        text_content_part = self.keyword_partition(text.content, delim)
-                        if (keyword.lower() in text_content_part.lower()):
-                            matches += 1
-                        elif text.embeds:
-                            embed_full = ""
-                            if text.embeds[0].title:
-                                embed_full += text.embeds[0].title
-                            if text.embeds[0].description:
-                                embed_full += text.embeds[0].description
-                            embed_full_part = self.keyword_partition(embed_full, delim)
-                            if (keyword.lower() in embed_full_part.lower()):
-                                matches += 1
-                if (matches == total):
-                    good = True
+        match = False
+        matched_keyword = ""
+
+        if keywords_data:
+            for row in keywords_data:
+                # for multi-word keywords, match all of them
+                keyword_set = row.split()
+                number_of_keywords = len(keyword_set)
+                number_of_matched_keywords = 0
+
+                for keyword in keyword_set:
+                    if keyword in text:
+                        number_of_matched_keywords += 1
+
+                if number_of_matched_keywords == number_of_keywords and number_of_matched_keywords != 0:
+                    match = True
+                    matched_keyword = row
                     break
 
-            if negatives:
-                for negative in negatives:
-                    if isinstance(text, str) is True:
-                        text_part = self.keyword_partition(text, delim)
-                        if (negative.lower() in text_part.lower()):
-                            good = False
-                            break
-                    if hasattr(text, "content"):
-                        text_content_part = self.keyword_partition(text.content, delim)
-                        if (negative.lower() in text_content_part.lower()):
-                            good = False
-                            break
-                        elif text.embeds:
-                            embed_full = ""
-                            if text.embeds[0].title:
-                                embed_full += text.embeds[0].title
-                            if text.embeds[0].description:
-                                embed_full += text.embeds[0].description
-                            embed_full_part = self.keyword_partition(embed_full, delim)
-                            if (negative.lower() in embed_full_part.lower()):
-                                good = False
-                                break
+        if n_keywords_data:
+            for row in n_keywords_data:
+                n_keyword_set = row.split()
+                number_of_n_keywords = len(n_keyword_set)
+                number_of_matched_n_keywords = 0
 
-            if (good):
-                return (True, keyword_set)
-            else:
-                return (False, None)
+                for n_keyword in n_keyword_set:
+                    if n_keyword in text:
+                        number_of_matched_n_keywords += 1
+
+                if number_of_matched_n_keywords == number_of_n_keywords and number_of_matched_n_keywords != 0:
+                    match = False
+                    break
+
+        if match is True:
+            return matched_keyword
         else:
-            return (False, None)
+            return None
 
     # ==================================================================================== #
     #                                      COMMANDS                                        #
@@ -204,21 +237,31 @@ Here is the subcommand list for the 'keyword' command:
     async def add(self, ctx, *, args):
         message = await ctx.send("Processing...")
         try:
-            if not args:
-                await message.edit(content="Please specify a keyword to add to the list.")
+            if args:
+                # If message is prefixed with a hyphen, add the keyword to the negative list
+                if args[0] == "-":
+                    list_name = "negative keyword list"
+                    negative = True
+                    keyword = args.lower().removeprefix("-")
+                else: 
+                    list_name = "keyword list"
+                    negative = False
+                    keyword = args.lower()
+
+                # Check if the keyword already exists in the database.
+                match = self.Keyword_GetOne(keyword, negative)
+
+                # If the keyword exists, do not add it to the database.
+                if match is True:
+                    await message.edit(content=f"`{keyword}` is already on the {list_name}.")
+
+                else:
+                    # If the keyword does not exist, add it to the database.
+                    self.Keyword_Create(keyword, negative)
+                    await message.edit(content=f"Added `{keyword}` to the {list_name}.")
+
             else:
-                args = args.split()
-                for arg in args:
-                    keyword_match = self.keyword_check(arg)
-                    if (keyword_match[0]):
-                        await message.edit(content=f"`{arg}` is already on the list")
-                    else:
-                        self.write_to_txt("keyword_check/keywords.txt", arg)
-                        keyword_match = self.keyword_check(arg)
-                        if (keyword_match[0]):
-                            await message.edit(content=f"Added `{arg}` to the keyword list")
-                        else:
-                            await message.edit(content=f"Uh oh! I was unable to add `{arg}` to the list")
+                await message.edit(content=f"Please specify a keyword to add to the {list_name}.")
 
         except Exception as e:
             print(f"Exception occured during command: /keyword add: {e}")
@@ -230,21 +273,31 @@ Here is the subcommand list for the 'keyword' command:
     async def remove(self, ctx, *, args):
         message = await ctx.send("Processing...")
         try:
-            if not args:
-                await message.edit(content="Please specify a keyword to remove from the list.")
+            if args:
+                # If message is prefixed with a hyphen, remove the keyword from the negative list
+                if args[0] == "-":
+                    list_name = "negative keyword list"
+                    negative = True
+                    keyword = args.lower().removeprefix("-")
+                else: 
+                    list_name = "keyword list"
+                    negative = False
+                    keyword = args.lower()
+
+                # Check if the keyword already exists in the database.
+                match = self.Keyword_GetOne(keyword, negative)
+
+                # If the keyword does not exist, do not add it from database.
+                if match is False:
+                    await message.edit(content=f"`{keyword}` isn't on the {list_name}.")
+
+                else:
+                    # If the keyword exists, remove it from the database.
+                    self.Keyword_Delete(keyword, negative)
+                    await message.edit(content=f"Removed `{keyword}` from the {list_name}.")
+
             else:
-                args = args.split()
-                for arg in args:
-                    keyword_match = self.keyword_check(arg)
-                    if (keyword_match[0]):
-                        self.remove_from_txt("keyword_check/keywords.txt", arg)
-                        keyword_match = self.keyword_check(arg)
-                        if (keyword_match[0]):
-                            await message.edit(content=f"Uh oh! I was unable to remove `{arg}` from the list")
-                        else:
-                            await message.edit(content=f"Removed `{arg}` from the keyword list")
-                    else:
-                        await message.edit(content=f"`{arg}` isn't on the list.")
+                await message.edit(content=f"Please specify a keyword to remove from the {list_name}.")
 
         except Exception as e:
             print(f"Exception occured during command: /keyword remove: {e}")
@@ -256,9 +309,22 @@ Here is the subcommand list for the 'keyword' command:
     async def list(self, ctx):
         message = await ctx.send("Processing...")
         try:
-            keywords = self.read_from_txt("keyword_check/keywords.txt")
-            keyword_output = "\n".join((line) for line in keywords)
-            await message.edit(content=f"Here is a list of all of the keywords that I'm listening for: \n```{keyword_output}```")
+            keywords_data = self.Keyword_GetAll(False)
+            n_keywords_data = self.Keyword_GetAll(False)
+
+            if keywords_data is None:
+                await message.edit(content="I'm not currently listening for any keywords. You can add some by using /keyword add <keywords>!")
+                return
+
+            if keywords_data is not None:
+                keyword_output = "\n".join((keyword) for keyword in keywords_data)
+                msg = f"""Here is a list of all of the keywords that I'm listening for:\n```{keyword_output}```"""
+
+            if n_keywords_data is not None:
+                n_keyword_output = "\n".join((n_keyword) for n_keyword in n_keywords_data)
+                msg += f"""\nHere is a list of all of the keywords that I've excluded:\n```{n_keyword_output}```"""
+
+            await message.edit(content=msg)
 
         except Exception as e:
             print(f"Exception occured during command: /keyword list: {e}")
@@ -274,8 +340,10 @@ Here is the subcommand list for the 'keyword' command:
         # If the message is from the deals channel
         if (ctx.channel.id == self.deals_channel):
 
-            keyword_match = self.keyword_check(ctx)
-            if (keyword_match[0]):
+            text = self.Keyword_CleanText(ctx)
+            matched_keyword = self.Keyword_CheckIfKeywordExistsInString(text)
+
+            if matched_keyword:
                 keyword_msg = ""
                 if ctx.content:
                     keyword_msg += ctx.content + " "
@@ -287,9 +355,9 @@ Here is the subcommand list for the 'keyword' command:
 
                 keyword_msg = keyword_msg.partition("@Deal Notifications")[0]
 
-                print("I found a keyword: " + keyword_match[1])
+                print("I found a keyword: " + matched_keyword)
                 role = discord.utils.get(ctx.guild.roles, id=self.deal_notifications)
                 channel = self.bot.get_channel(self.tracker_channel)
                 embed = discord.Embed(description="I found a keyword!\n" + role.mention, color=0x49cd74)
-                embed.add_field(name="Keyword Matched", value=keyword_match[1])
+                embed.add_field(name="Keyword Matched", value=matched_keyword)
                 await channel.send(role.mention + " " + keyword_msg, embed=embed)
