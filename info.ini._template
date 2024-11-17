@@ -1,0 +1,59 @@
+[BOT]
+discord_bot_token = # https://discord.com/developers
+enable_skyblock_tracker = TRUE
+enable_keyword_tracker = TRUE
+enable_network_tracker = TRUE
+enable_finance_tracker = TRUE
+enable_reminders = TRUE
+enable_youtube_notifications = TRUE
+
+[DATABASE]
+host = 
+user = 
+password = 
+database = 
+
+[SKYBLOCK]
+hypixel_api_key = # https://developer.hypixel.net/
+
+item_name = 
+enchanted_item_name = 
+
+minion_output = 
+minion_storage_slots = 
+
+minion_fuel_boost = 
+minion_upgrade_slot_boost = 
+minion_beacon_boost = 
+minion_infusion_boost = 
+
+number_of_minions = 
+
+[NOTIFICATIONS]
+youtube_api_key = # https://developers.google.com/youtube/v3/getting-started
+
+[FINANCE]
+alpha_vantage_api_key = # https://www.alphavantage.co/support/#api-key
+gold_api_key = # https://www.goldapi.io/
+
+[DISCORD_CHANNELS]
+bot_commands = 
+security_news = 
+gaming_news = 
+pc_hardware_news = 
+educational_news = 
+celebrity_news = 
+deals = 
+deal_tracker = 
+skyblock_tracker = 
+stock_tracker = 
+network_tracker = 
+
+[DISCORD_ROLES]
+bot_commands_role = 
+deal_notifications = 
+security_news = 
+gaming_news = 
+pc_hardware_news = 
+educational_news = 
+celebrity_news = 
