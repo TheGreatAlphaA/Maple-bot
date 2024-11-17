@@ -65,7 +65,11 @@ class network_cog(commands.Cog):
 
         self.network_tracker = int(self.config['DISCORD_CHANNELS']['network_tracker'])
 
-        self.NetworkTrackerLoop.start()
+        # Start the loop
+        self.enabled = self.config['BOT']['enable_network_tracker']
+        
+        if self.enabled == "TRUE":
+            self.NetworkTrackerLoop.start()
 
     # ==================================================================================== #
     #                                      FUNCTIONS                                       #

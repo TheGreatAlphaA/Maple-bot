@@ -77,7 +77,10 @@ class skyblock_cog(commands.Cog):
         self.sb_channel = int(self.config['DISCORD_CHANNELS']['skyblock_tracker'])
 
         # Start the loop
-        self.SkyblockTrackerLoop.start()
+        self.enabled = self.config['BOT']['enable_skyblock_tracker']
+
+        if self.enabled == "TRUE":
+            self.SkyblockTrackerLoop.start()
 
     # ==================================================================================== #
     #                                      FUNCTIONS                                       #
@@ -350,8 +353,16 @@ class skyblock_cog(commands.Cog):
     # ==================================================================================== #
 
     def SkyblockTracker(self):
+        # This string contains the message that will be sent at the end.
+        sb_tracker_msg = ""
+
         # Get the player data from the database
         players_data = self.SkyblockGetPlayerDatabaseData()
+
+        # If no players in database
+        if players_data is None:
+            sb_tracker_msg += "Not tracking any players currently. Please set up at least one player in the database before enabling the skyblock tracker."
+            return sb_tracker_msg
 
         # Request API Data
         bazaar_data = self.SkyblockGetBazaarData()
@@ -388,9 +399,6 @@ class skyblock_cog(commands.Cog):
 
         # Sort the list of players by their collection
         player_ranking = sorted(players, key=lambda d: d['collection'], reverse=True)
-
-        # This string contains the message that will be sent at the end.
-        sb_tracker_msg = ""
 
         # Lists the ranked collection leaderboard.
         for j in range(len(player_ranking)):

@@ -59,7 +59,11 @@ class finance_cog(commands.Cog):
 
         self.stock_channel = int(self.config['DISCORD_CHANNELS']['stock_tracker'])
 
-        self.StockTrackerLoop.start()
+        # Start the loop
+        self.enabled = self.config['BOT']['enable_finance_tracker']
+        
+        if self.enabled == "TRUE":
+            self.StockTrackerLoop.start()
 
     # ==================================================================================== #
     #                                      FUNCTIONS                                       #

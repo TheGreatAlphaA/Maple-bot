@@ -61,7 +61,11 @@ class reminders_cog(commands.Cog):
         self.db_password = self.config['DATABASE']['password']
         self.db_database = self.config['DATABASE']['database']
 
-        self.RemindersTrackerLoop.start()
+        # Start the loop
+        self.enabled = self.config['BOT']['enable_reminders']
+        
+        if self.enabled == "TRUE":
+            self.RemindersTrackerLoop.start()
 
     # ==================================================================================== #
     #                                      FUNCTIONS                                       #

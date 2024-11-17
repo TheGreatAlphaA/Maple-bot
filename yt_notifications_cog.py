@@ -77,7 +77,11 @@ class yt_notifications_cog(commands.Cog):
             #       <tag>
         }
 
-        self.YouTubeTrackerLoop.start()
+        # Start the loop
+        self.enabled = self.config['BOT']['enable_youtube_notifications']
+        
+        if self.enabled == "TRUE":
+            self.YouTubeTrackerLoop.start()
 
     # ==================================================================================== #
     #                                      FUNCTIONS                                       #

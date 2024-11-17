@@ -43,6 +43,8 @@ class keyword_cog(commands.Cog):
         self.tracker_channel = int(self.config['DISCORD_CHANNELS']['deal_tracker'])
 
         self.deal_notifications = int(self.config['DISCORD_ROLES']['deal_notifications'])
+
+        self.enabled = self.config['BOT']['enable_keyword_tracker']
         
     # ==================================================================================== #
     #                                      FUNCTIONS                                       #
@@ -333,31 +335,34 @@ Here is the subcommand list for the 'keyword' command:
 
     @commands.Cog.listener()
     async def on_message(self, ctx):
-        # Ignore messages made by the bot
-        if (ctx.author == self.bot.user):
-            return
+        # If the keyword checker is enabled
+        if self.enabled == "TRUE":
 
-        # If the message is from the deals channel
-        if (ctx.channel.id == self.deals_channel):
+            # Ignore messages made by the bot
+            if (ctx.author == self.bot.user):
+                return
 
-            text = self.Keyword_CleanText(ctx)
-            matched_keyword = self.Keyword_CheckIfKeywordExistsInString(text)
+            # If the message is from the deals channel
+            if (ctx.channel.id == self.deals_channel):
 
-            if matched_keyword:
-                keyword_msg = ""
-                if ctx.content:
-                    keyword_msg += ctx.content + " "
-                if ctx.embeds:
-                    if ctx.embeds[0].title:
-                        keyword_msg += ctx.embeds[0].title + " "
-                    if ctx.embeds[0].description:
-                        keyword_msg += ctx.embeds[0].description
+                text = self.Keyword_CleanText(ctx)
+                matched_keyword = self.Keyword_CheckIfKeywordExistsInString(text)
 
-                keyword_msg = keyword_msg.partition("@Deal Notifications")[0]
+                if matched_keyword:
+                    keyword_msg = ""
+                    if ctx.content:
+                        keyword_msg += ctx.content + " "
+                    if ctx.embeds:
+                        if ctx.embeds[0].title:
+                            keyword_msg += ctx.embeds[0].title + " "
+                        if ctx.embeds[0].description:
+                            keyword_msg += ctx.embeds[0].description
 
-                print("I found a keyword: " + matched_keyword)
-                role = discord.utils.get(ctx.guild.roles, id=self.deal_notifications)
-                channel = self.bot.get_channel(self.tracker_channel)
-                embed = discord.Embed(description="I found a keyword!\n" + role.mention, color=0x49cd74)
-                embed.add_field(name="Keyword Matched", value=matched_keyword)
-                await channel.send(role.mention + " " + keyword_msg, embed=embed)
+                    keyword_msg = keyword_msg.partition("@Deal Notifications")[0]
+
+                    print("I found a keyword: " + matched_keyword)
+                    role = discord.utils.get(ctx.guild.roles, id=self.deal_notifications)
+                    channel = self.bot.get_channel(self.tracker_channel)
+                    embed = discord.Embed(description="I found a keyword!\n" + role.mention, color=0x49cd74)
+                    embed.add_field(name="Keyword Matched", value=matched_keyword)
+                    await channel.send(role.mention + " " + keyword_msg, embed=embed)
