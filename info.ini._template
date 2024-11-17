@@ -2,7 +2,7 @@
 discord_bot_token = # https://discord.com/developers
 enable_skyblock_tracker = TRUE
 enable_keyword_tracker = TRUE
-enable_network_tracker = TRUE
+enable_network_tracker = FALSE # only enable this if you know what you're doing!
 enable_finance_tracker = TRUE
 enable_reminders = TRUE
 enable_youtube_notifications = TRUE
