@@ -100,7 +100,7 @@ class help_cog(commands.Cog):
     # Changes discord presence to hint the bot's help command
     @commands.Cog.listener()
     async def on_ready(self):
-        print("\nMaple-Bot v6.3\nCreated by Alpha_A [2021-2024]\n")
+        print("\nMaple-Bot v6.4\nCreated by Alpha_A [2021-2024]\n")
         await self.bot.change_presence(activity=discord.Game(f"{self.bot.command_prefix}help"))
         print(f"Bot Is Ready. Logged in as {self.bot.user}")
 
