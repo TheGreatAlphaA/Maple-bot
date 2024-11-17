@@ -25,8 +25,9 @@ except ModuleNotFoundError:
 
 # Import each of the cogs
 # from <file name> import <class name>
-from dnd_cog import dnd_cog
 from help_cog import help_cog
+from database_cog import database_cog
+from dnd_cog import dnd_cog
 from keyword_cog import keyword_cog
 from music_cog import music_cog
 from network_cog import network_cog
@@ -58,8 +59,9 @@ bot.remove_command('help')
 
 async def main():
     async with bot:
-        await bot.add_cog(dnd_cog(bot))
         await bot.add_cog(help_cog(bot))
+        await bot.add_cog(database_cog(bot))
+        await bot.add_cog(dnd_cog(bot))
         await bot.add_cog(keyword_cog(bot))
         await bot.add_cog(music_cog(bot))
         await bot.add_cog(network_cog(bot))
