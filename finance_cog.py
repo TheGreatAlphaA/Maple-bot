@@ -11,6 +11,13 @@ except ModuleNotFoundError:
     sys.exit("Process finished with exit code: ModuleNotFoundError")
 
 try:
+    import mysql.connector
+except ModuleNotFoundError:
+    print("Please install mysql-connector. (pip install mysql-connector-python)")
+    e = input("Press enter to close")
+    sys.exit("Process finished with exit code: ModuleNotFoundError")
+
+try:
     import urllib.request
 except ModuleNotFoundError:
     print("Please install urllib. (pip install urllib3)")
@@ -42,13 +49,15 @@ class finance_cog(commands.Cog):
         self.config = configparser.ConfigParser()
         self.config.read("info.ini")
 
+        self.db_host = self.config['DATABASE']['host']
+        self.db_user = self.config['DATABASE']['user']
+        self.db_password = self.config['DATABASE']['password']
+        self.db_database = self.config['DATABASE']['database']
+
         self.av_api_key = str(self.config['FINANCE']['alpha_vantage_api_key'])
         self.gold_api_key = str(self.config['FINANCE']['gold_api_key'])
 
         self.stock_channel = int(self.config['DISCORD_CHANNELS']['stock_tracker'])
-
-        self.stock_tickers = ["GME", "TSM"]
-        # "GME", "NVDA", "MSFT", "IBM", "TSM", "AMD", "MU", "FSLR", "IONQ"
 
         self.StockTrackerLoop.start()
 
@@ -96,30 +105,62 @@ class finance_cog(commands.Cog):
 
         return metal_info
 
+    def Stock_GetAll(self, type):
+
+        stock_data = []
+
+        # Connect to the database
+        mydb = mysql.connector.connect(
+            host=self.db_host,
+            user=self.db_user,
+            password=self.db_password,
+            database=self.db_database
+        )
+
+        cursor = mydb.cursor(buffered=True)
+
+        # Get the old values for total collection.
+        query = """SELECT TICKER, TARGET_BUY, TARGET_SELL FROM finance_stocks WHERE TYPE = %(type)s"""
+        cursor.execute(query, {'type': type})
+
+        # Checks if query is empty
+        if cursor.rowcount == 0:
+            return stock_data
+
+        # Organizes the data
+        data = cursor.fetchall()
+
+        for i in range(len(data)):
+            # Assign friendly names to the data
+            ticker = data[i][0]
+            target_buy = data[i][1]
+            target_sell = data[i][2]
+
+            # Defines the list of youtube channels
+            stock_dict = {
+                "ticker": ticker,
+                "target_buy": target_buy,
+                "target_sell": target_sell
+            }
+
+            stock_data.append(stock_dict)
+
+        return stock_data
+
     # ==================================================================================== #
     #                                      COMMANDS                                        #
     # ==================================================================================== #
 
     @commands.hybrid_command(name="stock", help="gets the daily stock price for the selected stock ticker")
     @commands.is_owner()
-    async def stock(self, ctx, stock_ticker=None):
+    async def stock(self, ctx, stock_ticker):
         message = await ctx.send("Processing...")
         try:
-
-            if stock_ticker is None:
-                stock_ticker = "MSFT"
 
             # Get the message contents
             stock_info = await self.StockTracker(stock_ticker)
 
-            # stock_symbol = stock_info["Global Quote"]["01. symbol"]
-            # stock_open = stock_info["Global Quote"]["02. open"]
-            # stock_high = stock_info["Global Quote"]["03. high"]
-            # stock_low = stock_info["Global Quote"]["04. low"]
             stock_price = float(stock_info["Global Quote"]["05. price"])
-            # stock_volume = stock_info["Global Quote"]["06. volume"]
-            # stock_lastest_trade_day = stock_info["Global Quote"]["07. latest trading day"]
-            # stock_previous_close = stock_info["Global Quote"]["08. previous close"]
             stock_change_price = float(stock_info["Global Quote"]["09. change"])
             stock_change_percent = stock_info["Global Quote"]["10. change percent"]
 
@@ -138,7 +179,7 @@ class finance_cog(commands.Cog):
             msg += f" [Yahoo Finance](<https://finance.yahoo.com/quote/{stock_ticker}/>)"
 
             # Sends the final report
-            await message.edit(msg)
+            await message.edit(content=msg)
 
         except Exception as e:
             print(f"Exception occured during command: /stock: {e}")
@@ -147,12 +188,9 @@ class finance_cog(commands.Cog):
 
     @commands.hybrid_command(name="metal", help="gets the daily market price for the selected metal type")
     @commands.is_owner()
-    async def metal(self, ctx, metal=None):
+    async def metal(self, ctx, metal):
         message = await ctx.send("Processing...")
         try:
-
-            if metal is None:
-                metal = "gold"
 
             # Get the message contents
             metal_info = await self.GoldSilverTracker(metal)
@@ -174,7 +212,7 @@ class finance_cog(commands.Cog):
                 msg += f":bar_chart: Daily trend is neutral (+{metal_change_price}) (+{metal_change_percent}%)"
 
             # Sends the final report
-            await message.edit(msg)
+            await message.edit(content=msg)
 
         except Exception as e:
             print(f"Exception occured during command: /metal: {e}")
@@ -198,34 +236,53 @@ class finance_cog(commands.Cog):
                 channel = self.bot.get_channel(self.stock_channel)
 
                 try:
-                    stock_ticker = "GME"
 
-                    # Get the message contents
-                    stock_info = await self.StockTracker(stock_ticker)
+                    stock_data = self.Stock_GetAll("stock")
 
-                    stock_price = float(stock_info["Global Quote"]["05. price"])
+                    for i in range(len(stock_data)):
 
-                    target_min = 36.62
+                        stock_ticker = stock_data[i]["ticker"]
+                        target_buy = stock_data[i]["target_buy"]
+                        target_sell = stock_data[i]["target_sell"]
 
-                    # Check if the current investment is positive for Gamestop
-                    if stock_price > target_min:
-                        msg += f":chart_with_upwards_trend: Target goal REACHED for {stock_ticker.upper()}! Current price is (+${stock_price})\n\n"
+                        # Get the most recent stock information
+                        stock_info = await self.StockTracker(stock_ticker)
+
+                        stock_price = float(stock_info["Global Quote"]["05. price"])
+
+                        # Check if the stock has reached the target buy price
+                        if stock_price < target_buy:
+                            msg += f":chart_with_downwards_trend: {stock_ticker.upper()} has reached the target buy price! Current price is (+${stock_price})\n\n"
+
+                        # Check if the stock has reached the target sell price
+                        elif stock_price > target_sell:
+                            msg += f":chart_with_upwards_trend: {stock_ticker.upper()} has reached the target sell price! Current price is (+${stock_price})\n\n"
 
                 except Exception as e:
                     print(f"Exception occured during function: StockTrackerLoop(): {e}")
 
                 try:
-                    metal = "silver"
 
-                    # Get the message contents
-                    metal_info = await self.GoldSilverTracker(metal)
+                    metal_data = self.Stock_GetAll("metal")
 
-                    metal_price = float(metal_info["price"])
+                    for i in range(len(metal_data)):
 
-                    target_min = 50.00
+                        metal = metal_data[i]["ticker"]
+                        target_buy = metal_data[i]["target_buy"]
+                        target_sell = metal_data[i]["target_sell"]
 
-                    if metal_price > target_min:
-                        msg += f":chart_with_upwards_trend: Target goal REACHED for {metal.title()}! Current price is (+${metal_price})\n\n"
+                        # Get the most recent stock information
+                        metal_info = await self.GoldSilverTracker(metal)
+
+                        metal_price = float(metal_info["price"])
+
+                        # Check if the stock has reached the target buy price
+                        if metal_price < target_buy:
+                            msg += f":chart_with_downwards_trend: {metal.title()} has reached the target buy price! Current price is (+${metal_price})\n\n"
+
+                        # Check if the stock has reached the target sell price
+                        elif metal_price > target_sell:
+                            msg += f":chart_with_upwards_trend: {metal.title()} has reached the target sell price! Current price is (+${metal_price})\n\n"
 
                 except Exception as e:
                     print(f"Exception occured during function: StockTrackerLoop(): {e}")
