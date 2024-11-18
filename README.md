@@ -53,7 +53,7 @@
 ## How To Use
 <span id="how-to-use"></span>
 
-To clone and run this application, you'll need [Git](https://git-scm.com), [Python 3.9+](https://www.python.org/downloads/), and [FFmpeg](https://ffmpeg.org/download.html)  installed on your computer. From your command line:
+To clone and run this application, you'll need [Git](https://git-scm.com), [Python 3.9+](https://www.python.org/downloads/), and [FFmpeg](https://ffmpeg.org/download.html)  installed on your computer. You will also need a MySQL database installed and accessible from your local network. From your command line:
 
 #### Installing the required dependancies
 ```bash
@@ -66,6 +66,14 @@ $ sudo apt install python3.12-venv
 # Install FFmpeg
 $ sudo apt install ffmpeg
 ```
+
+> **Note**
+> If you're using Windows, use the following links to download the required dependancies:
+- [Git for Windows](https://git-scm.com/downloads/win)
+- [Python 3 for Windows](https://www.python.org/downloads/windows/)
+- [FFmpeg for Windows](https://www.wikihow.com/Install-FFmpeg-on-Windows)
+
+  
 #### Installing the application
 ```bash
 # Clone this repository
@@ -82,17 +90,75 @@ $ source venv/bin/activate
 
 # Install dependencies
 $ sudo pip install -r requirements.txt
+```
 
+#### Configuring the application
+Start by taking the provided info.ini._template file and rename it to info.ini. You will need to set up multiple configuration options before the first run. 
+```bash
+[BOT]
+discord_bot_token = # https://discord.com/developers
+enable_skyblock_tracker = FALSE
+enable_keyword_tracker = FALSE
+enable_network_tracker = FALSE # only enable this if you know what you're doing!
+enable_finance_tracker = FALSE
+enable_reminders = FALSE
+enable_youtube_notifications = FALSE
+```
+First, start by obtaining a discord bot token. Determine which features you need to enable; keep in mind that some options require additional API keys to function.
+```bash
+[DATABASE]
+host = 
+user = 
+password = 
+database = 
+```
+If you have an existing MySQL database server, you can enter your information here. Otherwise, follow this guide to set up: [Getting started with MySQL](https://dev.mysql.com/doc/mysql-getting-started/en/)
+```bash
+[SKYBLOCK]
+hypixel_api_key = # https://developer.hypixel.net/
+```
+To use the Skyblock functions, you will need to register your application with Hypixel to obtain an API key.
+```bash
+[NOTIFICATIONS]
+youtube_api_key = # https://developers.google.com/youtube/v3/getting-started
+```
+To use the YouTube Notifications feature, you will need to register for an API key with Google.
+```bash
+[FINANCE]
+alpha_vantage_api_key = # https://www.alphavantage.co/support/#api-key
+gold_api_key = # https://www.goldapi.io/
+```
+To use the Financial Tracker, you will need to register for an API key with Alpha Vantage and Gold API
+```bash
+[DISCORD_CHANNELS]
+bot_commands = 
+security_news = 
+gaming_news = 
+pc_hardware_news = 
+educational_news = 
+celebrity_news = 
+deals = 
+deal_tracker = 
+skyblock_tracker = 
+stock_tracker = 
+network_tracker = 
+
+[DISCORD_ROLES]
+bot_commands_role = 
+deal_notifications = 
+security_news = 
+gaming_news = 
+pc_hardware_news = 
+educational_news = 
+celebrity_news = 
+```
+For the Discord Channels and Roles, enter the channel ids and role ids for each appropriate channel and role respectively.
+
+#### Run the application
+```bash
 # Run the app
 $ python main.py
 ```
-
-> **Note**
-> If you're using Windows, use the following links to download the required dependancies:
-- [Git for Windows](https://git-scm.com/downloads/win)
-- [Python 3 for Windows](https://www.python.org/downloads/windows/)
-- [FFmpeg for Windows](https://www.wikihow.com/Install-FFmpeg-on-Windows)
-
 
 ## Download
 <span id="Download"></span>
