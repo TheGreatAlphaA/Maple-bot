@@ -312,7 +312,7 @@ Here is the subcommand list for the 'keyword' command:
         message = await ctx.send("Processing...")
         try:
             keywords_data = self.Keyword_GetAll(False)
-            n_keywords_data = self.Keyword_GetAll(False)
+            n_keywords_data = self.Keyword_GetAll(True)
 
             if keywords_data is None:
                 await message.edit(content="I'm not currently listening for any keywords. You can add some by using /keyword add <keywords>!")

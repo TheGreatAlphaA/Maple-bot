@@ -71,6 +71,11 @@ class skyblock_cog(commands.Cog):
         self.minion_beacon_boost = int(self.config['SKYBLOCK']['minion_beacon_boost'])
         self.minion_infusion_boost = int(self.config['SKYBLOCK']['minion_infusion_boost'])
 
+        if self.minion_fuel_boost > 100:
+            self.minion_total_boost = (self.minion_fuel_boost / 100) * ((100 + self.minion_upgrade_slot_boost + self.minion_beacon_boost + self.minion_infusion_boost) / 100)
+        else:
+            self.minion_total_boost = (self.minion_fuel_boost + 100 + self.minion_upgrade_slot_boost + self.minion_beacon_boost + self.minion_infusion_boost) / 100
+
         self.number_of_minions = int(self.config['SKYBLOCK']['number_of_minions'])
 
         # This is the channel that our notifications will be posted to.
@@ -238,16 +243,11 @@ class skyblock_cog(commands.Cog):
         scorched_power_crystal_buy_order = bazaar_data["products"]["SCORCHED_POWER_CRYSTAL"]["quick_status"]["buyPrice"]
         power_crystal_buy_order = bazaar_data["products"]["POWER_CRYSTAL"]["quick_status"]["buyPrice"]
 
-        if self.minion_fuel_boost > 100:
-            boost = (self.minion_fuel_boost / 100) * ((100 + self.minion_upgrade_slot_boost + self.minion_beacon_boost + self.minion_infusion_boost) / 100)
-        else:
-            boost = (self.minion_fuel_boost + 100 + self.minion_upgrade_slot_boost + self.minion_beacon_boost + self.minion_infusion_boost) / 100
-
         if mayor == "Derpy":
             # Doubled output when Derpy is mayor
-            daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 2 * 0.99
+            daily_gross = self.minion_output * self.minion_total_boost * self.number_of_minions * instant_sell_price * 2 * 0.99
         else:
-            daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 0.99
+            daily_gross = self.minion_output * self.minion_total_boost * self.number_of_minions * instant_sell_price * 0.99
 
         if self.minion_beacon_boost == 6:
             if self.minion_fuel_boost == 400:
@@ -438,7 +438,7 @@ class skyblock_cog(commands.Cog):
         minion_owner = players_data[0]["minecraft_username"]
 
         # Estimate the time until the next harvest
-        days_between = int(((self.minion_storage * 64) - 128) / self.minion_output)
+        days_between = int(((self.minion_storage * 64) - 128) / (self.minion_output * self.minion_total_boost))
 
         # Check the days since the last harvest
         try:
@@ -460,19 +460,36 @@ class skyblock_cog(commands.Cog):
             data = cursor.fetchall()
 
             days_since = data[0][0]
+
+            number_of_days_remaining = int(days_between - days_since)
+
         except IndexError:
             days_since = None
+            number_of_days_remaining = None
 
-        if days_since == 0:
-            sb_tracker_msg += "\n:corn: Minions have been harvested recently (< 1 day).\n"
-        elif days_since == 1 and days_between == 1:
-            sb_tracker_msg += f"\n:sunflower: Items are ready to be collected! ({days_since} day).\n"
-        elif days_since == 1:
-            sb_tracker_msg += "\n:seedling: Minions are busy harvesting items. (1 day).\n"
-        elif days_since < days_between:
-            sb_tracker_msg += f"\n:seedling: Minions are busy harvesting items. ({days_since} days).\n"
-        elif days_since >= days_between:
-            sb_tracker_msg += f"\n:sunflower: Items are ready to be collected! ({days_since} days).\n"
+        # If there is more than one day until harvest
+        if days_since == 0 and number_of_days_remaining > 1:
+            sb_tracker_msg += f"\n:corn: Minions have been harvested recently ({number_of_days_remaining} days until harvest).\n"
+        elif number_of_days_remaining > 1:
+            sb_tracker_msg += f"\n:seedling: Minions are busy harvesting items. ({number_of_days_remaining} days until harvest).\n"
+
+        # If there is one day until harvest
+        elif days_since == 0 and number_of_days_remaining == 1:
+            sb_tracker_msg += f"\n:corn: Minions have been harvested recently ({number_of_days_remaining} day until harvest).\n"
+        elif number_of_days_remaining == 1:
+            sb_tracker_msg += f"\n:seedling: Minions are busy harvesting items. ({number_of_days_remaining} day until harvest).\n"
+
+        # If the harvest date is today:
+        elif number_of_days_remaining == 0:
+            sb_tracker_msg += "\n:sunflower: Items are ready to be collected! (Filled recently!).\n"
+
+        # If the harvest date was yesterday
+        elif number_of_days_remaining == -1:
+            sb_tracker_msg += f"\n:sunflower: Items are ready to be collected! ({abs(number_of_days_remaining)} day since filled).\n"
+
+        # If the harvest date is past the expected date
+        elif number_of_days_remaining < -1:
+            sb_tracker_msg += f"\n:sunflower: Items are ready to be collected! ({abs(number_of_days_remaining)} days since filled).\n"
 
         # Total profit based on the provided parameters
         sb_tracker_msg += f"\n:bar_chart: We made {self.human_format(daily_profit_gen)} coins.\n"
