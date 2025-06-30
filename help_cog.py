@@ -83,7 +83,7 @@ class help_cog(commands.Cog):
 ```
 **Notification commands:**
 ```
-{self.bot.command_prefix}remindme <date/time> [message] - creates a reminder message to send later.
+{self.bot.command_prefix}remindme <date/time> "[message]" - creates a reminder message to send later.
 ```
 **Finance commands:**
 ```

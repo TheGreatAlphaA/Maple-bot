@@ -201,8 +201,11 @@ class skyblock_cog(commands.Cog):
         resp = urllib.request.urlopen(url)
         data = json.load(resp)
 
-        # Get the item collection data for the requested player.
-        collection = data["profile"]["members"][player]["collection"][self.sb_item_name]
+        try:
+            # Get the item collection data for the requested player.
+            collection = data["profile"]["members"][player]["collection"][self.sb_item_name]
+        except KeyError:
+            collection = -1
 
         return collection
 
@@ -249,7 +252,7 @@ class skyblock_cog(commands.Cog):
         else:
             daily_gross = self.minion_output * self.minion_total_boost * self.number_of_minions * instant_sell_price * 0.99
 
-        if self.minion_beacon_boost == 6:
+        if (self.minion_beacon_boost % 2 != 0) and (self.minion_beacon_boost > 0):
             if self.minion_fuel_boost == 400:
                 daily_expense = (4 * self.number_of_minions * hypercatalyst_buy_order) + (scorched_power_crystal_buy_order / 2)
             elif self.minion_fuel_boost == 300:
@@ -262,7 +265,7 @@ class skyblock_cog(commands.Cog):
                 daily_expense = (1 * self.number_of_minions * hamster_wheel_buy_order) + (scorched_power_crystal_buy_order / 2)
             else:
                 daily_expense = scorched_power_crystal_buy_order / 2
-        elif self.minion_beacon_boost > 0:
+        elif (self.minion_beacon_boost % 2 == 0) and (self.minion_beacon_boost > 0):
             if self.minion_fuel_boost == 400:
                 daily_expense = (4 * self.number_of_minions * hypercatalyst_buy_order) + (power_crystal_buy_order / 2)
             elif self.minion_fuel_boost == 300:
@@ -308,9 +311,9 @@ class skyblock_cog(commands.Cog):
         else:
             daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 0.99
 
-        if self.minion_beacon_boost == 6:
+        if (self.minion_beacon_boost % 2 != 0) and (self.minion_beacon_boost > 0):
             daily_expense = scorched_power_crystal_buy_order / 2
-        elif self.minion_beacon_boost > 0:
+        elif (self.minion_beacon_boost % 2 == 0) and (self.minion_beacon_boost > 0):
             daily_expense = power_crystal_buy_order / 2
         else:
             daily_expense = 0
@@ -335,9 +338,9 @@ class skyblock_cog(commands.Cog):
         else:
             daily_gross = self.minion_output * boost * self.number_of_minions * instant_sell_price * 0.99
 
-        if self.minion_beacon_boost == 6:
+        if (self.minion_beacon_boost % 2 != 0) and (self.minion_beacon_boost > 0):
             daily_expense = (4 * self.number_of_minions * hypercatalyst_buy_order) + (scorched_power_crystal_buy_order / 2)
-        elif self.minion_beacon_boost > 0:
+        elif (self.minion_beacon_boost % 2 == 0) and (self.minion_beacon_boost > 0):
             daily_expense = (4 * self.number_of_minions * hypercatalyst_buy_order) + (power_crystal_buy_order / 2)
         else:
             daily_expense = 4 * self.number_of_minions * hypercatalyst_buy_order
@@ -411,11 +414,20 @@ class skyblock_cog(commands.Cog):
             collection_name_pretty = self.sb_item_name.lower().replace("_", " ")
 
             # Lists the collections
-            sb_tracker_msg += f"{minecraft_username} has a {collection_name_pretty} collection total of {collection}"
-            sb_tracker_msg += f" (+{sb_delta})\n"
+            if j == 0:
+                sb_tracker_msg += f":first_place: {minecraft_username} has a {collection_name_pretty} collection total of {collection} (+{sb_delta})\n"
+            elif j == 1:
+                sb_tracker_msg += f":second_place: {minecraft_username} has a {collection_name_pretty} collection total of {collection} (+{sb_delta})\n"
+            elif j == 2:
+                sb_tracker_msg += f":third_place: {minecraft_username} has a {collection_name_pretty} collection total of {collection} (+{sb_delta})\n\n"
+            elif collection > 0:
+                sb_tracker_msg += f"{minecraft_username} has a {collection_name_pretty} collection total of {collection} (+{sb_delta})\n"
+            else:
+                sb_tracker_msg += f":bangbang: {minecraft_username} has turned off their API! Last known collection is {yesterdays_collection}\n"
 
-            # Update the SQL Database
-            self.SkyblockUpdatePlayerDatabaseData(minecraft_username, collection)
+            if collection > 0:
+                # Update the SQL Database
+                self.SkyblockUpdatePlayerDatabaseData(minecraft_username, collection)
 
         # Check if a special mayor has been elected
         if elected_mayor not in {"Aatrox", "Cole", "Diana", "Diaz", "Finnegan", "Foxy", "Marina", "Paul"}:
@@ -438,7 +450,11 @@ class skyblock_cog(commands.Cog):
         minion_owner = players_data[0]["minecraft_username"]
 
         # Estimate the time until the next harvest
-        days_between = int(((self.minion_storage * 64) - 128) / (self.minion_output * self.minion_total_boost))
+        if elected_mayor is "Derpy":
+            days_between = int((((self.minion_storage * 64) - 128) / (self.minion_output * self.minion_total_boost)) / 2)
+        else:
+            days_between = int(((self.minion_storage * 64) - 128) / (self.minion_output * self.minion_total_boost))
+
 
         # Check the days since the last harvest
         try:
@@ -469,27 +485,27 @@ class skyblock_cog(commands.Cog):
 
         # If there is more than one day until harvest
         if days_since == 0 and number_of_days_remaining > 1:
-            sb_tracker_msg += f"\n:corn: Minions have been harvested recently ({number_of_days_remaining} days until harvest).\n"
+            sb_tracker_msg = f":corn: Minions have been harvested recently ({number_of_days_remaining} days until harvest).\n\n" + sb_tracker_msg
         elif number_of_days_remaining > 1:
-            sb_tracker_msg += f"\n:seedling: Minions are busy harvesting items. ({number_of_days_remaining} days until harvest).\n"
+            sb_tracker_msg = f"\n:seedling: Minions are busy harvesting items. ({number_of_days_remaining} days until harvest).\n\n" + sb_tracker_msg
 
         # If there is one day until harvest
         elif days_since == 0 and number_of_days_remaining == 1:
-            sb_tracker_msg += f"\n:corn: Minions have been harvested recently ({number_of_days_remaining} day until harvest).\n"
+            sb_tracker_msg = f"\n:corn: Minions have been harvested recently ({number_of_days_remaining} day until harvest).\n\n" + sb_tracker_msg
         elif number_of_days_remaining == 1:
-            sb_tracker_msg += f"\n:seedling: Minions are busy harvesting items. ({number_of_days_remaining} day until harvest).\n"
+            sb_tracker_msg = f"\n:seedling: Minions are busy harvesting items. ({number_of_days_remaining} day until harvest).\n\n" + sb_tracker_msg
 
         # If the harvest date is today:
         elif number_of_days_remaining == 0:
-            sb_tracker_msg += "\n:sunflower: Items are ready to be collected! (Filled recently!).\n"
+            sb_tracker_msg = "\n:sunflower: Items are ready to be collected! (Filled recently!).\n\n" + sb_tracker_msg
 
         # If the harvest date was yesterday
         elif number_of_days_remaining == -1:
-            sb_tracker_msg += f"\n:sunflower: Items are ready to be collected! ({abs(number_of_days_remaining)} day since filled).\n"
+            sb_tracker_msg = f"\n:sunflower: Items are ready to be collected! ({abs(number_of_days_remaining)} day since filled).\n\n" + sb_tracker_msg
 
         # If the harvest date is past the expected date
         elif number_of_days_remaining < -1:
-            sb_tracker_msg += f"\n:sunflower: Items are ready to be collected! ({abs(number_of_days_remaining)} days since filled).\n"
+            sb_tracker_msg = f"\n:sunflower: Items are ready to be collected! ({abs(number_of_days_remaining)} days since filled).\n\n" + sb_tracker_msg
 
         # Total profit based on the provided parameters
         sb_tracker_msg += f"\n:bar_chart: We made {self.human_format(daily_profit_gen)} coins.\n"

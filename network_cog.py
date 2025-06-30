@@ -65,11 +65,13 @@ class network_cog(commands.Cog):
 
         self.network_tracker = int(self.config['DISCORD_CHANNELS']['network_tracker'])
 
+        '''
         # Start the loop
         self.enabled = self.config['BOT']['enable_network_tracker']
         
         if self.enabled == "TRUE":
             self.NetworkTrackerLoop.start()
+        '''
 
     # ==================================================================================== #
     #                                      FUNCTIONS                                       #
@@ -182,6 +184,7 @@ class network_cog(commands.Cog):
 
         return result
 
+    '''
     async def get_public_ip_address(self):
 
         old_ip_address = self.get_old_ip_address()
@@ -208,6 +211,7 @@ class network_cog(commands.Cog):
             message = await channel.send(f"||{old_ip_address} -> {new_ip_address}|| :warning: Your public ip address appears to have changed.")
             # Write the new ip to the file
             self.update_ip_address(new_ip_address)
+    '''
 
     # ==================================================================================== #
     #                                      COMMANDS                                        #
@@ -356,7 +360,7 @@ class network_cog(commands.Cog):
     # ==================================================================================== #
     #                                      MAIN LOOP                                       #
     # ==================================================================================== #
-
+    '''
     @tasks.loop(hours=23)
     async def NetworkTrackerLoop(self):
         await asyncio.sleep(self.seconds_until(18, 00))
@@ -374,3 +378,4 @@ class network_cog(commands.Cog):
     @NetworkTrackerLoop.before_loop
     async def before_NetworkTrackerLoop(self):
         await self.bot.wait_until_ready()
+    '''
